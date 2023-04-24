@@ -1,0 +1,107 @@
+---
+title: "Mendota_HypoP"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-04-10'
+output: html_document
+---
+
+The purpose of this program is to isolate phosphorus measurements in the deep water (hypolimnion) of the lake and transform the data into time series. 
+
+Step 1. load data and packages needed:
+
+Loading the data...
+```{r}
+library(dplyr) #needed for transforming data
+library(lubridate) #needed for date conversion functions
+library(ggplot2) #needed for plotting
+library(zoo) #needed for time series
+data<- read.csv(file.choose(), header=TRUE) #choose "Original_data/ntl1_v9_1_chem.csv"
+```
+
+Data loaded. 
+
+Step 2. Transform and filter data:
+
+Transforming and filtering data...
+```{r}
+unique(data$lakeid) #identify the code for lake
+sort(unique(data$depth)) #identify the depths of measurements
+ME_P<- data %>%
+  filter(lakeid=="ME", #filter for Lake Mendota
+         rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as Date
+         Yr=as.integer(year4), #format year is integer
+         daynum=as.integer(daynum), #format Julian day number as integer
+         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
+         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
+         Depth_m = depth) %>% #rename depth field with units (meters)
+  select(sampledate, Yr, daynum, TotP_mgL, DisP_mgL, Depth_m) %>%
+  filter(!is.na(TotP_mgL)) #remove records with NAs
+```
+
+Data transformed and filtered.
+
+Find depth where consistent data collected:
+
+``` {r}
+stem(ME_P$Depth_m) #plots the number of observations by depth (y-axis)
+```
+
+Filter the observations by depth and average by sample date. 
+
+```{r}
+Hypo_P<- ME_P %>%
+  filter(Depth_m >= 20) %>% #for observations taken at or below 20 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>% #average the observations
+  mutate(Yr=as.integer(year(sampledate)), #adds field with year
+         daynum=as.integer(yday(sampledate)),
+         Mo=as.integer(month(sampledate))) #adds field with Julian date
+
+```
+
+Measurements averaged by depth and sample date.
+
+Step 3. View and summarize the data:
+
+```{r}
+ggplot(data=Hypo_P, 
+       aes(x=daynum,y=TotP_mgL, col=Yr)) + 
+  geom_point()+
+  labs(title="Hypolimnion (>= 20 m), Lake Mendota, WI", #plot title
+       x="Day of Year", #x axis label
+       y="TOtal Phosphorus (mg/L)", #y axis label
+       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+  ylim(0, max(Hypo_P$TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(Hypo_P$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month) - CHANGE AS
+  # NEEDED
+  theme_classic()+
+  scale_color_continuous(name="Year")+
+  geom_smooth() + #adds loess curve (moving average regression model)
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=195, xmax=255, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
+```
+
+Measurements plotted by Julian day to show frequency of sampling.
+
+Step 4. Transform data to time series:
+
+a) summarize (average) data by month
+
+```{r}
+Hypo_P_sum <- Hypo_P %>%
+  mutate(MoYr=format(sampledate, "%m/%Y")) %>% 
+  group_by(MoYr) %>%
+  summarise(TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>%
+  mutate(MoYr=MoYr)
+```
+
+b) convert data frame to time series
+
+```{r}
+tseries<- as.ts(Hypo_P_sum)
+write.csv(tseries, "Mendota_Hypo_Plake.csv")
+```
