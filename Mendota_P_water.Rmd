@@ -1,0 +1,152 @@
+---
+title: "Mendota_P_water"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-04-10'
+output: html_document
+---
+
+The purpose of this program is to isolate phosphorus measurements in the surface 
+water (epilimnion) and bottom water (hypolimnion) of the lake. 
+
+# Step 1. load dependent packages and data needed:
+
+a) Loading the dependent packages...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(ggplot2) #needed for plotting
+library(lubridate) #needed for reformatting data and using "year" function
+library(zoo) #needed for time series
+```
+
+Packages loaded.
+
+b) Loading the data...
+
+```{r}
+data<- read.csv(file.choose(), header=TRUE) #choose "Original_data/ntl1_v9_1_chem.csv"
+```
+
+# Step 2. Transform and filter data:
+
+a) Identify depth at which measurements were taken...
+
+```{r}
+sort(unique(data$depth)) #identify the depths of measurements
+ME_P<- data %>%
+  filter(lakeid=="ME", #filter for Lake Mendota
+         rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as Date
+         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
+         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
+         Depth_m = depth) %>% #rename depth field with units (meters)
+  select(sampledate, TotP_mgL, DisP_mgL, Depth_m) %>%
+  filter(!is.na(TotP_mgL)) #remove records with NAs
+stem(ME_P$Depth_m) #plots the number of observations by depth (y-axis)
+```
+
+b) Filtering epilimnion P data...
+```{r}
+Epi_P<- ME_P %>%
+  filter(Depth_m <= 1.5) %>% #for observations taken at or above 1.5 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>% #average the observations
+  mutate(Yr=as.integer(year(sampledate)), #adds field with year
+         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month,year
+         daynum=as.integer(yday(sampledate)),
+         Mo=as.integer(month(sampledate))) #adds field with Julian date
+```
+
+Epi P data transformed and filtered.
+
+b) Transforming and filtering hypolimnion P data...
+
+```{r}
+Hypo_P<- ME_P %>%
+  filter(Depth_m >= 20) %>% #for observations taken at or below 20 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>% #average the observations
+  mutate(Yr=as.integer(year(sampledate)), #adds field with year
+         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month,year
+         daynum=as.integer(yday(sampledate)),
+         Mo=as.integer(month(sampledate))) #adds field with Julian date
+```
+
+Hypo P data transformed and filtered.
+
+
+# Step 3. View and summarize the data:
+
+a) Plotting epi P data...
+```{r}
+ggplot(data=Epi_P, 
+       aes(x=daynum,y=TotP_mgL)) + 
+  geom_point(aes(col=Yr))+
+  labs(title="Epilimnion (>= 1.5 m), Lake Mendota, WI", #plot title
+       x="Day of Year", #x axis label
+       y="Total Phosphorus (mg/L)", #y axis label
+       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+  ylim(0, max(Epi_P$TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(Epi_P$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month) - CHANGE AS
+  # NEEDED
+  theme_classic()+
+  scale_color_continuous(name="Year")+
+  geom_smooth() + #adds loess curve (moving average regression model)
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=195, xmax=255, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
+```
+
+Measurements plotted by Julian day to show frequency of sampling.
+
+b) Plotting hypo P data...
+```{r}
+ggplot(data=Hypo_P, 
+       aes(x=daynum,y=TotP_mgL)) + 
+  geom_point(aes(col=Yr))+
+  labs(title="Hypolimnion (>= 20 m), Lake Mendota, WI", #plot title
+       x="Day of Year", #x axis label
+       y="TOtal Phosphorus (mg/L)", #y axis label
+       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+  ylim(0, max(Hypo_P$TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(Hypo_P$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month) - CHANGE AS
+  # NEEDED
+  theme_classic()+
+  scale_color_continuous(name="Year")+
+  geom_smooth() + #adds loess curve (moving average regression model)
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=195, xmax=255, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
+```
+
+# Step 4. Combine data into single data file:
+
+```{r}
+Me_P_water<- merge(Epi_P, Hypo_P, by="sampledate") #merge the epi and hypo P by sample date
+Me_P_water<- Me_P_water %>% #need to clean up 
+  mutate(Epi_TotP_mgL=TotP_mgL.x, #rename column
+         TotP_mgL.x=NULL, #remove duplicate column
+         Epi_DisP_mgL=DisP_mgL.x,#rename column
+         DisP_mgL.x=NULL,#remove duplicate column
+         Hypo_TotP_mgL=TotP_mgL.y,#rename column
+         TotP_mgL.y=NULL,#remove duplicate column
+         Hypo_DisP_mgL=DisP_mgL.y,#rename column
+         DisP_mgL.y=NULL,#remove duplicate column
+         Yr=Yr.x,#rename column
+         Yr.x=NULL,#remove duplicate column
+         Yr.y=NULL,#remove duplicate column
+         daynum=daynum.x,#rename column
+         daynum.x=NULL,#remove duplicate column
+         daynum.y=NULL,#remove duplicate column
+         MoYr=MoYr.x,#rename column
+         MoYr.x=NULL,#remove duplicate column
+         MoYr.y=NULL,#remove duplicate column
+         Mo=Mo.x,#rename column
+         Mo.x=NULL,#remove duplicate column
+         Mo.y=NULL,
+         HE_ratio_TotP_mgL=Hypo_TotP_mgL/Epi_TotP_mgL, #calculate Hypo: Epi total P
+         HE_ratio_DisP_mgL=Hypo_DisP_mgL/Epi_DisP_mgL)#calculate Hypo: Epi dissolved P 
+write.csv(Me_P_water, file="Cleaned_data/Mendota_P_water.csv")
+```
