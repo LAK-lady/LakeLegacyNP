@@ -1,0 +1,161 @@
+---
+title: "Mendota_timeseries"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-05-02'
+output: html_document
+---
+
+The purpose of this program is to analyze the Mendota nutrient and water quality 
+data using time series analysis. 
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(ggplot2) #needed for plots
+library(ggbreak) #needed for plot scale breaks
+library(dplyr) #needed for reshaping/reformaing data
+library(lubridate) #needed for date functions
+library(zoo) #needed to interpolate data
+library(xts) #needed to convert data frame to time series
+```
+
+b) Loading data...
+Note, ensure date data is formatted in R as Date.
+
+```{r}
+Me_P_water<- read.csv(file="Cleaned_data/Mendota_P_water.csv")
+Me_P_water<- Me_P_water %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+Me_Chla<- read.csv(file="Cleaned_data/Mendota_Chl.csv")
+Me_Chla<- Me_Chla %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+Me_Cyano<- read.csv(file="Cleaned_data/Mendota_Cyano.csv")
+Me_Cyano<- Me_Cyano %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+```
+
+# Step 2. Combine data into one data file: 
+
+a) Merging nutrient data with Chl-a data by sample date...
+
+```{r}
+Me_Chla <- Me_Chla %>%
+  mutate(Yr=NULL, Mo=NULL, MoYr=NULL, daynum=NULL) #remove excess columns
+water<- merge(Me_P_water, Me_Chla, by="sampledate")
+```
+
+Nutrient and Chl-a data merged.
+
+b) Merging nutrient data with Cyano data by sample date...
+
+```{r}
+Me_Cyano<- Me_Cyano %>%
+  mutate(Yr=NULL, Mo=NULL, MoYr=NULL, daynum=NULL) #remove excess columns
+water<- merge(water, Me_Cyano, by="sampledate")
+```
+
+Nutrient and cyano data merged.
+
+
+# Step 3. View data:
+
+a) plotting Hypo: Epi total P...
+
+```{r}
+ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
+       aes(x=sampledate, y=HE_ratio_TotP_mgL)) +
+  geom_point() +
+  geom_line() + 
+  theme_classic() +
+  labs(x="Date", y="Hypo: Epi total P ratio") +
+  scale_x_date(date_breaks="1 year")
+```
+Hypo: Epi total P ratio plotted.
+
+b) plotting chl-a...
+
+```{r}
+ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
+       aes(x=sampledate,  y=Chla_ugL)) +
+  geom_point() +
+  geom_line() + 
+  theme_classic() +
+  labs(x="Date", y="Chlorophyll-a (ug/L)") +
+  scale_x_date(date_breaks="1 year")
+```
+
+Chl-a plotted.
+
+c) plotting Cyano relative biovolume...
+
+```{r}
+ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
+       aes(x=sampledate,  y=relbiovol)) +
+  geom_point() +
+  geom_line() + 
+  theme_classic() +
+  labs(x="Date", y="Cyanobacteria relative biovolume (as % total algal)") +
+  scale_x_date(date_breaks="1 year")
+```
+
+Cyanobacteria relative biovolume plotted.
+
+# Step 5. Transform data to time series:
+
+For time series, observations must be in equal time intervals. The simplest practice is to model each variable over time and calculate the predicted values for each observation. 
+Use first order moving average model (MA1) to interpolate missing observations (X_t = u + w_t + theta_1*w_t-1).
+
+a) Converting Hypo: Epi total P data into time series...
+```{r}
+
+water_2009<- water %>%
+  filter(year(sampledate)==2019) %>%
+  mutate(obs=seq(as.Date("2009-04-01"), as.Date("2009-10-30"), length.out=14))
+
+
+HE_ratio_totP_ts<- xts(water$HE_ratio_TotP_mgL, water$sampledate)
+HE_ratio_totP_ts
+class(HE_ratio_totP_ts)
+## alternatively, you can use "as.ts(water_ts)" but you will lose the date info
+HE_ratio_totP_ma<- rollmean(HE_ratio_totP_ts, k=3)
+plot.ts(HE_ratio_totP_ma)
+```
+
+Hypo: Epi total P ratio converted to time series.
+
+b) Converting chl-a data into time series...
+```{r}
+Chl_ts<- xts(water_yrmo$Chl, water_yrmo$MoYr2)
+Chl_ts
+class(Chl_ts)
+```
+
+c) Converting Cyano rel biovol data to time series...
+
+```{r}
+Cyano_ts<- xts(water_yrmo$relbiovol, water_yrmo$MoYr2)
+Cyano_ts
+class(Cyano_ts)
+```
+
+# Step 6. Perform lag regression model:
+
+a) fitting a first order lag regression model...
+
+```{r}
+chl_reg<- lm(water_yrmo$Chla_ugL_avg~water_yrmo$HE_ratio_TotP_avg)
+summary(chl_reg)
+
+chl_reg_lag<- lm(water_yrmo$Chla_ugL_avg~lag(water_yrmo$HE_ratio_TotP_avg, k=1))
+summary(chl_reg_lag)
+plot(chl_reg_lag)
+ggplot(data=water_yrmo, aes(y=Chla_ugL_avg, x=lag(water_yrmo$HE_ratio_TotP_avg, k=1)))+
+  geom_point()+
+  theme_classic()+
+  scale_y_continuous(trans="log10")
+```
