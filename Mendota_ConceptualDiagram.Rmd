@@ -1,0 +1,44 @@
+---
+title: "Mendota_ConceptualDiagram"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-03-06'
+output: html_document
+---
+
+The purpose of this program is to draw the conceptual diagram of the pools and 
+fluxes of P for the system.
+
+Step 1. Load the data and packages needed:
+
+```{r}
+library(DiagrammeR) #needed for conceptual model
+```
+
+Below is the conceptual model for a summer, stratified lake, assuming the 
+metalimnion is negligible, and the flux of P in and out. 
+
+``` {r}
+grViz("
+digraph SEM {
+
+graph [layout = dot,
+       overlap = false, fontsize = 20]
+
+node [shape = rectangle]
+
+a [label = 'External Load', shape = oval]
+b [label = 'External Export', shape = oval]
+c [label = 'Epilimnion']
+d [label = 'Hypolimnion']
+e [label = 'Sediments']
+f [label = 'Permanent Burial', shape = oval]
+a->c
+c->b
+c->d [label = 'Settling']
+d->c [label = '    Entrainment']
+d->e [label = 'Settling']
+e->d [label = '   Internal Load']
+e->f 
+}
+")
+```
