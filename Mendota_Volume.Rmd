@@ -1,0 +1,228 @@
+---
+title: "Mendota_Volume"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-02-14'
+output: html_document
+---
+
+The purpose of this program is to calculate the volumes of each lake layer 
+(epilimnion, hypolimnion, sediments) to support mass balance calculations.
+
+Step 1. set working directory and load dependent packages:
+
+```{r}
+library(ggplot2) #needed for plotting data
+library(dplyr) #needed for reformatting data
+```
+
+Step 2. Load the data into R: 
+
+```{r}
+Secchi <- read.csv(file.choose()) #choose ntl31_v9_secchi.csv
+```
+
+Note the metadata can be found at: 
+https://portal.edirepository.org/nis/metadataviewer?packageid=knb-lter-ntl.31.32
+
+Step 3. Filter and transform the data:
+
+```{r}
+ME_Secchi<- Secchi %>%
+  filter(lakeid=="ME") %>% # filters data for Lake Mendota 
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) #tells R to format 
+          #data as date
+```
+
+Step 4. Summarize and view the data:
+
+```{r}
+ME_Secchi_day <- ME_Secchi %>%
+  group_by(daynum) %>% #group all data for that day of year (multiple years)
+  summarize(secview_avg= mean(secview, na.rm=TRUE), #mean of Secchi with viewer
+            secnview_avg= mean(secnview, na.rm=TRUE)) #mean of Secchi without viewer
+
+plot(ME_Secchi_day$secview_avg~ME_Secchi_day$daynum, #plot Secchi by day of yr
+     xlab="Day of Year", #add x axis label
+     ylab="Average Secchi Depth (m)") #add y axis label) #plot Secchi with viewer
+```
+
+There are only 3 observations so I can't use this data. I need to use the Secchi
+disk depth (m) measured without the viewer. I plotted this data, below.
+
+```{r}
+ggplot(data=ME_Secchi_day, aes(y=secnview_avg, x=as.numeric(daynum))) + #plot Secchi by day of yr
+  geom_point()+
+  labs(title="Lake Mendota, WI",
+       x="Day of Year", #add x axis label
+       y="Average Secchi Depth (m)") + #add y axis label
+  theme_classic()+
+  geom_smooth()+
+  annotate('rect', xmin=195, xmax=255, ymin=0, ymax=Inf, alpha=.6, fill='gray60') #shade area of HAB season
+```
+
+The figure above represents the change in transparency of the lake across Julian
+day. A clear water column would have a high Secchi depth, whereas a turbid water 
+column would have a low Secchi depth. The red dashed lines represent the time of 
+year when the Secchi disk depth doesn't change (slope ~ 0), which corresponds to 
+July 15 to September 12. This means that on average the summer season when the 
+water transparency is consistently low (corresponding to CyanoHAB presence), is from 
+mid-July to mid-September. Likely, fall turnover mid-September can be attributed
+to increasing transparency and the reduction of CyanoHABs. 
+
+There appears to be a polynomial relationship with high variability during Winter 
+and Spring, and an exponential or linear increase during Fall, also with high 
+variability. I will have to perform separate analyses to describe the patterns
+during Winter, Spring, and Fall. 
+
+If I isolate the Summer period, I can perform a regression test to see if there 
+is no change in Secchi depth from mid-July to mid-September. 
+
+```{r}
+z<- lm(secnview_avg~daynum, data = subset(ME_Secchi_day, 
+                                         daynum > 195 & daynum <255))
+summary(z) #prints out the regression results testing whether y changes with x
+```
+
+Since there is no significant change in mean Secchi depth between mid-July and 
+mid-September (`r summary(z)$r.squared`, p-value > 0.05). I have a can determine
+the HAB season to be July 15 - Sep 15, and will subset all the data to this period 
+to do my summer volume calculations.
+
+Step 5. Set up terms and perform calculations for volume:
+
+```{r}
+Z_max<- 25.3 #max depth of Lake Mendota, WI in meters
+Z_avg <- 12.8 #average depth of Lake Mendota, WI in meters
+V_tot<- 500000000 #total water volume of Lake Mendota, WI in m^3
+t_res<- 4.5 #residence time of Lake Mendota, WI in years
+LSA <- 39.4 #surface area of Lake Mendota, WI in km^2
+km2_m2<- 1*1000000 #conversion factor from km^2 to m^2
+```
+
+Calculate the compensation depth from the mean summer Secchi disk depth:
+
+```{r}
+sum_ME_Secchi<- ME_Secchi_day %>%
+  filter(daynum>=195 & daynum < 255) %>% #filter the data to summer HAB season
+  mutate(secview_avg=NULL) # remove the unnecessary data
+
+sum<- sum_ME_Secchi %>%
+  summarise(mean=mean(sum_ME_Secchi$secnview_avg, na.rm=TRUE),
+          min=min(sum_ME_Secchi$secnview_avg, na.rm=TRUE),
+          max=max(sum_ME_Secchi$secnview_avg, na.rm=TRUE))
+Z_cd<-sum$mean*2 #compensation depth is 2x the Secchi depth
+```
+
+The compensation depth was estimated as `r Z_cd` m, and represents the separation 
+between the upper, autotrophy dominated layer of the lake, and the lower, 
+heterotrophy dominated layer of the lake.  The layers of the lake are assumed to be
+portions of a frustum of a cone, including the upper layer (R_upper) and lower layer (r_lower).
+
+Radius (R_upper) of the Lake is greater than the radius (r_lower) of the lower level. 
+If I know the total volume of the lake (V_tot), and the upper radius (R_upper), I can 
+find the lower radius (r_lower).
+
+Calculating r_lower:
+
+```{r}
+R_upper <- sqrt((LSA*km2_m2)/pi) # calculates the radius of the upper layer
+r_lower<- 1306  #calculates the radius of the lower layer = 1306 m
+V_upper<- 
+```
+
+Based on a lake surface area of `r LSA` km^2, compensation depth of 
+`r Z_cd` m, and cylinder geometry, the volume of the upper layer is `r V_epi` m^3. 
+
+To calculate the volume of the lower layer of the lake, I assume the shape of the
+lower layer of the lake is a frustum of a circular cone shape. The volume of a
+frustum of a circular cone is (pi*h/3)*(R_upper^2+R_upper*r_lower)
+
+```{r}
+Z_hypo<- Z_max - Z_cd #cap height of bowl is the max depth - compensation depth
+V_hypo<- pi*(Z_hypo/6)*((3*(r^2)) + Z_hypo^2) #vol of spherical bowl is
+            # pi*(h/6)*(3*(r^2) + h^2)
+```
+
+Based on a lake surface area of `r LSA` km^2, compensation depth of 
+`r Z_cd` m, and spherical bowl geometry, the volume of the lower layer is 
+`r V_hypo` m^3. 
+
+```{r}
+Z_sed = 0.1 #depth of unconsolidated sediments in m (from Nurnberg 1988)
+A_hypo<- pi*(r^2 + Z_hypo^2) #surface area of spherical cap
+V_sed = A_hypo*Z_sed #volume is area * height in m^3
+```
+
+Based on the hypolimion surface area of `r A_hypo` m^2, depth of 0.1 m, and 
+spherical cap geometry, the volume of the sediments is `r V_sed` m^3.
+
+## Assumption 1: Volume of epilimnion and hypolimnion pools are not changing, 
+during the HAB season.
+
+How do we test this assumption? We could use the Generalized Lake Model (GLM), 
+or USGS bathymetry-based calculations. Hanson et al 2020 used the GLM to model 
+the daily thermocline depth (in m from surface). The thermocline is the depth at 
+which water density gradient is greater and the epilimion (mixed) layer is 
+separated from the hypolimnion. 
+
+```{r}
+therm<- read.csv(file.choose(), header=TRUE) #7542 observations
+therm_com <- therm %>%
+  na.omit(thermo_depth) %>% #removes NANs and NAs (leaves 4,026 observations)
+  mutate(datetime=as.Date(datetime, origin="1899-12-30")) %>% #tells R to format 
+          #data as date 
+  mutate(daynum=format(datetime, "%j")) #adds column with Julian date
+therm_avg<- therm_com %>%
+  group_by(daynum) %>%
+  summarize(avg_depth_m=mean(thermo_depth, na.rm=TRUE))
+    
+plot(therm_avg$avg_depth_m~therm_avg$daynum,
+     xlab = "Julian Date",
+     ylab = "Thermocline depth in meters from surface") 
+abline(v=195, col="red", lty="dashed") #Summer range for Secchi
+abline(v=255, col="red", lty="dashed") #Summer range for Secchi
+abline(h=6, col="black", lty="dashed") #Summer beginning thermocline depth
+```
+
+The figure above shows the modeled, average thermocline depth from Jan 1 to Dec 31. 
+The red dashed lines indicated the HAB season (red, vertical dashed lines), in 
+which the average Secchi depth does not change. During this period, the 
+thermocline is increasing steadily, starting at an average 6 m (black, 
+horizontal dashed line). Based on this figure, the assumption that the hypolimnion
+volume doesn't change during the HAB season is not supported. This model indicates
+the epilimnion volume is increasing, thus the hypolimnion volume is decreasing.
+
+More information about the GLM can be found here:
+https://aed.see.uwa.edu.au/research/models/glm/# 
+
+## Assumption 2: The total volume of the lake is not changing during the HAB 
+season. 
+
+The total volume of the lake can be determined from change in the lake level over 
+time. 
+
+```{r}
+level<- read.csv(file.choose(), header=TRUE) #choose LakeLevel.csv
+sum<- level %>%
+  select(Date, Lake_Mendota) %>%
+  mutate(Date=as.Date(Date, 
+                      format="%m/%d/%Y", 
+                      origin="1899-12-30"))  #refomat date as date in R
+sum_level<- sum %>%
+  mutate(daynum=yday(Date)) %>% #calculate Julian date 
+  filter(daynum>=195 & daynum < 255) %>%
+  group_by(daynum) %>%
+  summarise(avg_level=mean(Lake_Mendota, na.rm=TRUE))
+ggplot(data=sum_level, aes(y=avg_level, x=daynum)) + 
+  geom_point() + #scatter plot
+  geom_smooth(method="loess") + #adds regression line for moving avg
+  labs(x="Julian Day",
+       y="Average Lake Level (US feet)")+
+  theme_classic()
+y<- lm(avg_level~daynum, data = sum_level)
+summary(y) #prints out the regression results testing whether y changes with x
+```
+
+The water level does significantly decline during this time, but the difference
+between the max and min levels is only `r max(sum_level$avg_level) - min(sum_level$avg_level)` feet. 
+It is unclear if a volume change of 1.1 feet is ecologically significant or not.
