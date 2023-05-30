@@ -1,0 +1,83 @@
+---
+title: "Mendota_Pexternal_atmdep"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-05-24'
+output: html_document
+---
+
+The purpose of this program is to process and analyze the Mendota nutrient 
+load from atmospheric deposition. 
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(ggplot2) #needed for plots
+library(dplyr) #needed for reshaping/reformaing data
+library(lubridate) #needed for date functions
+library(zoo) #needed to interpolate data
+library(xts) #needed to convert data frame to time series
+```
+
+b) Loading data...
+Note, ensure date data is formatted in R as Date.
+
+```{r}
+precip<- read.csv(file="Original_data/NOAA_Weather_Mendota_2012to2022.csv")
+precip<- precip %>%
+  mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y", #reformat as date
+                            origin="1899-12-30"))
+```
+
+c) filter and mutate data as needed...
+```{r}
+km2_m2= 1*1000000 #conversion factor from km^2 to m^2
+A_lake_m2 = 39.40*km2_m2 #surface area of Lake Mendota in m^2 
+in_m = 1/39.3701 #conversion factor 1 m = 39.701 inches
+m3_L = 1000/1 #conversion factor 1000 L = 1 m?^3
+P_atm_dry = 0.17 #mg P/m2-day rate of P dry deposition during summer (Soranno et al 1997)
+P_atm_wet = 0.032 #mg/L rate of P wet deposition
+
+precip<- precip %>%
+  mutate(Precipitation_in=as.numeric(Precipitation_in)) %>% #convert to numeric
+  filter(!is.na(Precipitation_in)) #remove NAs
+precip <- precip %>%
+  mutate(dryP_atm_mgday = (P_atm_dry*A_lake_m2), #calculate dry P deposited
+         wetP_atm_mgday = P_atm_wet*(A_lake_m2*(Precipitation_in*in_m)*m3_L), 
+         #calculate wet P deposited
+         totP_atm_mgday = dryP_atm_mgday+wetP_atm_mgday) #calculate total P atm
+# deposited every day
+```
+
+# Step 2. View the data:
+
+```{r}
+ggplot(data=precip, #need to subset data because of big gap between 2000 and 2008
+       aes(x=sampledate, y=totP_atm_mgday/1000)) +
+  geom_point() +
+  geom_line() + 
+  theme_classic() +
+  labs(x="Date", y="Total P deposited (wet and dry), in kg/day") +
+  scale_x_date(date_breaks="1 year") 
+```
+
+# Step 3. Interpolate missing data: 
+
+```{r}
+date_range<- seq( #creates a vector of sequence data
+  min(precip$sampledate), #starting at the first sample date
+  max(precip$sampledate), #ending at the last sample date
+  by="1 day") #observations every 14 days (bimonthly) 
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  precip$sampledate, #across date
+  precip$totP_atm_mgday, #the predicted values of Hypo P: Epi P ratio
+  xout=date_range) #for every 1 day
+totP_atm_interp <- data.frame( #creates a new data frame that has 
+  SampleDate = as.Date(interpolated$x), #measurements every 14 days
+                             totP_atm_mgday=interpolated$y) #predicted hypo: epi P ratio
+plot(totP_atm_interp,
+     xlab="Date",
+     ylab="Total P deposited from atmosphere (mg/day)") #plots the new time series
+write.csv(totP_atm_interp, file="Cleaned_data/Mendota_P_atm.csv")
+```
