@@ -2,7 +2,9 @@
 title: "Mendota_Pexternal_inflow"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-03-06'
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 The purpose of this program is to process and calculate the external P loading
@@ -51,7 +53,7 @@ SMC_DisP_flow<- SMC_DisP_flow %>%
 
 Data loaded.
 
-The site ID and source for Pheasant Branch is `r unique(PB_TotP_flow$Site_ID`.
+The site ID and source for Pheasant Branch is `r unique(PB_TotP_flow$Site_ID)`.
 The site ID and source for Yahara River is `r unique(YR_TotP_flow$Site_ID)`.
 The site ID and source for Six-mile Creek is `r unique(SMC_TotP_flow$Site_ID)`.
 Note, there are two sites, one with historic data and one with current data, for
@@ -76,21 +78,37 @@ Inflows<- merge(Inflows, SMC_TotP_flow, #merge two data frames
 
 # Step 2. View and summarize the data:
 
-Graphing total P external loading by day for each inflow since 2010...
+Graphing total P external loading for each inflow...
+
 ```{r}
+layout(matrix(c(1,2,3),3,1)) # optional 3 graphs/page
+plot(PB_TotP_flow$sampledate, PB_TotP_flow$TotP_lbday, 
+     xlab = "Sample Date", ylab = "Total P Loading (lb/day)", main = "Pheasant Branch")
+plot(YR_TotP_flow$sampledate, YR_TotP_flow$TotP_lbday, 
+     xlab = "Sample Date", ylab = "Total P Loading (lb/day)", main = "Yahara River")
+plot(SMC_TotP_flow$sampledate, SMC_TotP_flow$TotP_lbday, 
+     xlab = "Sample Date", ylab = "Total P Loading (lb/day)", main = "Six-Mile Creek")
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+```
+
+Graphing average total P external loading by daynum for each inflow between 2010 and 2020...
+```{r}
+lb_kg = 1/2.20462 #conversion factor from pound to kg
 Inflows_totP <- Inflows %>%
   mutate(Yr=as.integer(format(sampledate, "%Y")), #add column with year
          daynum=as.integer(format(sampledate, "%j"))) %>% #add column with day number
-  filter(Yr >= 2010) %>%  #filter data to include only the past decade...
-  group_by(daynum, Inflow) %>% #for each inflow on each day...
-  summarize(TotP_lbday_avg=mean(TotP_lbday, na.rm=TRUE)) #average the total P (lb/day) across the years
+  filter(Yr >= 2012 & Yr <=2022) %>%  #filter data to include only the past decade
+  group_by(daynum, Inflow) %>% #for each inflow on each day
+  summarize(TotP_kgday_avg=mean(TotP_lbday*lb_kg, #calculate mean total P (in kg/day)
+                                na.rm=TRUE)) #average the total P (lb/day) across the years
+
 ggplot(data=Inflows_totP, 
        aes(x=daynum, 
-           y=TotP_lbday_avg)) +
+           y=TotP_kgday_avg)) +
   geom_line()+
   facet_wrap(~Inflow) +
   theme_classic()+
-  labs(y="Average Daily Total P loading (lb/day), 2010 to 2023",
+  labs(y="Average Daily Total P loading from streams (kg/day), 2012 to 2022",
        x="Day of Year",
       caption="Grey shading indicates CyanoHAB season, mid-July to mid-Sept.") +
   ylim(c(0, max(Inflows$TotP_lbday))) +
@@ -105,9 +123,9 @@ Daily average total P loading from each of the inflows plotted.
 ```{r}
 Inflows_totP %>%
   group_by(Inflow) %>%
-  summarise(mean=mean(TotP_lbday_avg, na.rm=TRUE),
-            min=min(TotP_lbday_avg, na.rm=TRUE),
-            max=max(TotP_lbday_avg, na.rm=TRUE))
+  summarise(mean=mean(TotP_kgday_avg, na.rm=TRUE),
+            min=min(TotP_kgday_avg, na.rm=TRUE),
+            max=max(TotP_kgday_avg, na.rm=TRUE))
 ```
 
 # Step 3. Combine the data into total external load from all inflows:
@@ -115,21 +133,35 @@ Inflows_totP %>%
 ```{r}
 Inflows_sumP<- Inflows %>%
   group_by(sampledate) %>% #for each sample date...
-  summarize(TotP_lbday_sum=sum(TotP_lbday)) %>% #sum the total P loads for all three inflows
-  filter(!is.na(TotP_lbday_sum)) %>% #remove NAs 
-  filter(TotP_lbday_sum>=0) #remove any negative values
-write.csv(Inflows_sumP, file="Cleaned_data/Mendota_inflows.csv") #save as new data file
-ggplot(data=Inflows_sumP, 
-       aes(x=sampledate, 
-           y=TotP_lbday_sum)) +
-  geom_line()+
-  geom_smooth()+
-  theme_classic()+
-  labs(y="Total P loading (lb/day) from External Inflows",
-       x="Date",
-      caption="Grey shading indicates CyanoHAB season, mid-July to mid-Sept. \n
-      horizontal line represents moving average") 
+  summarize(TotP_kgday_sum=sum(TotP_lbday*lb_kg)) %>% #sum the total P loads for all three inflows
+  filter(!is.na(TotP_kgday_sum)) %>% #remove NAs 
+  filter(TotP_kgday_sum>=0) #remove any negative values
+write.csv(Inflows_sumP, file="Cleaned_data/Mendota_P_inflows.csv") #save as new data file
 ```
 
-The average daily total P load, from 2010 to 2023, was `r mean(Inflows_sumP$TotP_lbday_sum)` lb/day. 
+Plot total P load by year...
+
+```{r}
+Inflows_sumP<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv")
+Inflows_sumP <- Inflows_sumP %>%
+  mutate(Yr=year(sampledate),#create column with year
+         sampledate=NULL) %>% #remove extra column
+  filter(Yr >= 2012 & Yr <=2022) %>% #filter data to include only the past decade
+  mutate(X=NULL) #remove index column
+
+Inflows_sumP_yr<- Inflows_sumP %>%
+  group_by(Yr) %>% #group all records by year
+  summarise(sum_TP_kg=sum(TotP_kgday_sum)) #calculate the total P load 
+
+ggplot(Inflows_sumP_yr, aes(x=as.factor(Yr), y=sum_TP_kg)) +
+  geom_col() +
+  theme_classic() +
+  labs(x="Year", y="Total P loading from three inflows (kg)") 
+```
+
+Total P loading (kg) from the three inflows  plotted.
+
+The average annual total P load, from 2012 to 2022, was 
+`r mean(Inflows_sumP_yr$sum_TP_kg)` +- `r sd(Inflows_sumP_yr$sum_TP_kg)/sqrt(length(Inflows_sumP_yr$Yr))` kg/yr. 
+
 
