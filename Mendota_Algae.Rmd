@@ -24,15 +24,14 @@ Packages loaded.
 
 b) loading the chlorophyll-a data...
 ```{r}
-Chl<- read.csv(file.choose(), header=TRUE) #folder: Original_data, file: ntl38_v5_chl.csv
+Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
 ```
 
-Chlorophyll data loaded. 
+Chlorophyll-a data loaded. 
 
 c) loading the phytoplankton data...
 ```{r}
-phyto<-read.csv(file.choose()) # choose ntl88_v13_phytoplankton.csv to load
-  #the phytoplankton community dataset
+phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
 ```
 
 Phytoplankton community data loaded. 
@@ -40,7 +39,7 @@ Phytoplankton community data loaded.
 
 # Step 2. Filter and transform data:
 
-a) filter data for total algal biomass (as Chl-a) by sample date...
+a) filter and transform data for total algal biomass (as Chl-a) by sample date...
 
 ```{r}
 Me_Chl<- Chl %>%
@@ -50,13 +49,32 @@ Me_Chl<- Chl %>%
          depth_range_m=="0-8", #integrated sample from 0 to 8m
          rep=="1") %>% #remove QA analytic replicates
   mutate(sampledate=as.Date(sampledate,
-                            origin="1899-12-30"), #tells R to format as date
-         daynum=as.integer(format(sampledate, "%j")), #adds field with Julian day
-         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month,year
-         Yr=as.integer(format(sampledate, "%Y")), #adds field with year
-         Mo=as.integer(format(sampledate, "%m"))) %>% #adds field with month
-  select(sampledate, daynum, Yr, Mo, MoYr, Chla_ugL) #selects only fields of interest
-write.csv(Me_Chl, file = "Cleaned_data/Mendota_Chl.csv") #save new file in folder "Cleaned_data"
+                            origin="1899-12-30")) %>% #tells R to format as date
+  select(sampledate, Chla_ugL) #selects only fields of interest
+
+date_range<- seq( #creates a vector of sequence data
+  min(Me_Chl$sampledate), #starting at the first sample date
+  max(Me_Chl$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_Chl$sampledate, #across date
+  Me_Chl$Chla_ugL, #the predicted values of Hypo P: Epi P ratio
+  xout=date_range) #for every 1 day
+Chla_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #measurements every 14 days
+                             Chla_ugL=interpolated$y) #predicted hypo: epi P ratio
+Me_Chla_water<- Chla_interp %>%
+  mutate(Yr=as.integer(year(sampledate)), #adds field with year
+         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month and year
+         daynum=as.integer(yday(sampledate)), #adds field with Julian date
+         Mo=as.integer(month(sampledate))) #adds field with month)
+plot(Me_Chla_water$sampledate, Me_Chla_water$Chla_ugL,
+     xlab="Date",
+     ylab="Total Chl-a (ugL)") #plots the new time series
+```
+
+```{r}
+write.csv(Me_Chla_water, file = "Cleaned_data/Mendota_Chl.csv") #save new file in folder "Cleaned_data"
 ```
 
 Chl-a by sample date complete. File saved in Cleaned_data folder.
@@ -88,21 +106,24 @@ Cyanobacteria as percent of total biovolume and as cells/mL by sample date compl
 
 a) Plot Chl-a by day of year...
 ```{r}
-ggplot(data=Me_Chl, 
+ggplot(data=Me_Chla_water, 
        aes(x=daynum,y=Chla_ugL)) + 
   geom_point(aes(col=Yr))+
-  scale_y_continuous(trans="log10") +
   labs(title="Lake Mendota, WI", #plot title
        x="Day of Year", #x axis label
-       y="Total Algal Biomass as Chlorophyll-a (ug/L)", #y axis label
+       y="Extracted Chl-a (ug/L)", #y axis label
        caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
-  theme_classic() +
+  ylim(0, max(Me_Chla_water$Chla_ugL)) +
+  scale_x_continuous(breaks = seq(0, max(Me_Chla_water$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month) - CHANGE AS
+  # NEEDED
+  theme_classic()+
   scale_color_continuous(name="Year")+
   geom_smooth() + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 b) Plot Chl-a each year, with coding for CyanoHAB severity:
@@ -457,4 +478,3 @@ ggplot(data=joined_TPChl, aes(x=Use_Jdate)) +
                                        name="Total Chlorophyll-a (ug/L)")) +
   geom_hline(yintercept=20/100, col="red", lty="dashed")
 ```
-
