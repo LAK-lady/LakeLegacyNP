@@ -61,7 +61,7 @@ precip <- precip %>%
 
 ```{R}
 precip_sum <- precip %>%
-  mutate(daynum=format(sampledate, format = "%d"))
+  mutate(daynum=format(sampledate, format = "%j"))
 precip_avg <-precip_sum %>%
   filter(daynum >=195 & daynum <= 255)
 ```
