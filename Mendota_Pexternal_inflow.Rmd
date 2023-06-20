@@ -75,6 +75,7 @@ Inflows<- merge(Inflows, SMC_TotP_flow, #merge two data frames
                 all=TRUE) #keep all records for both data frames                
 ```
 
+The three data frames are merged.
 
 # Step 2. View and summarize the data:
 
@@ -136,6 +137,11 @@ Inflows_sumP<- Inflows %>%
   summarize(TotP_kgday_sum=sum(TotP_lbday*lb_kg)) %>% #sum the total P loads for all three inflows
   filter(!is.na(TotP_kgday_sum)) %>% #remove NAs 
   filter(TotP_kgday_sum>=0) #remove any negative values
+```
+
+# Step 4. Save new data file.
+
+```{R}
 write.csv(Inflows_sumP, file="Cleaned_data/Mendota_P_inflows.csv") #save as new data file
 ```
 

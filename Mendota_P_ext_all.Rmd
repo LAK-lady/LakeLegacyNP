@@ -1,0 +1,64 @@
+---
+title: "Mendota_P_ext_all.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-06-20'
+output: html_document
+---
+
+
+The purpose of this program is to calculate total external P load from both 
+atmospheric deposition and stream inflows.
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(ggplot2) #needed for plots
+library(ggbreak) #needed for plot scale breaks
+library(dplyr) #needed for reshaping/reformaing data
+library(lubridate) #needed for date functions
+library(zoo) #needed to interpolate data
+library(xts) #needed to convert data frame to time series
+```
+
+Packages loaded.
+
+b) Loading dependent data....
+
+```{r}
+streams<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") #has the internal loading data
+atm<- read.csv(file="Cleaned_data/Mendota_P_atm.csv")
+```
+
+Data loaded.
+
+# Step 2. Transform and merge data:
+
+a) transforming data...
+
+```{r}
+atm2<- atm %>%
+  mutate(X=NULL,
+         sampledate=as.Date(SampleDate, origin="1899-12-30"),
+         SampleDate=NULL)
+streams2<- streams %>%
+  mutate(X=NULL,
+         sampledate=as.Date(sampledate, origin="1899-12-30"))
+```
+
+Data transformed.
+
+b) merging data...
+
+```{r}
+extP_load<- merge(atm2, streams2, by="sampledate")
+extP_load <- extP_load %>%
+  mutate(totextP_kgday=(totP_atm_kgday + TotP_kgday_sum))
+```
+
+# Step 3. Save data as new data file:
+
+```{r}
+write.csv(extP_load, file="Cleaned_data/Mendota_P_allext.csv")
+```
