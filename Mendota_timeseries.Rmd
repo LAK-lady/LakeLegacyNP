@@ -2,7 +2,9 @@
 title: "Mendota_timeseries"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-05-02'
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 The purpose of this program is to analyze the Mendota nutrient and water quality 
@@ -25,18 +27,22 @@ b) Loading data...
 Note, ensure date data is formatted in R as Date.
 
 ```{r}
-Me_P_water<- read.csv(file="Cleaned_data/Mendota_P_water.csv")
+Me_P_water<- read.csv(file="Cleaned_data/Mendota_P_water.csv") #has the internal loading data
 Me_P_water<- Me_P_water %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
          X=NULL) #remove extra column
-Me_Chla<- read.csv(file="Cleaned_data/Mendota_Chl.csv")
+Me_Chla<- read.csv(file="Cleaned_data/Mendota_Chl.csv") # has the response variable 1
 Me_Chla<- Me_Chla %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
          X=NULL) #remove extra column
-Me_Cyano<- read.csv(file="Cleaned_data/Mendota_Cyano.csv")
+Me_Cyano<- read.csv(file="Cleaned_data/Mendota_Cyano.csv") #has the response variable 2
 Me_Cyano<- Me_Cyano %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
          X=NULL) #remove extra column
+Me_P_extinfl<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") #has the external loading data
+Me_P_extinfl<- Me_P_extinfl %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column=as.Date(sampledate, orig))
 ```
 
 # Step 2. Combine data into one data file: 
@@ -61,26 +67,19 @@ water<- merge(water, Me_Cyano, by="sampledate")
 
 Nutrient and cyano data merged.
 
+c) Merging external loading with other data by sample date...
+
+```{r}
+water<- merge(water, Me_P_extinfl, by="sampledate")
+```
 
 # Step 3. View data:
 
-a) plotting Hypo: Epi total P...
-
-```{r}
-ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
-       aes(x=sampledate, y=HE_ratio_TotP_mgL)) +
-  geom_point() +
-  geom_line() + 
-  theme_classic() +
-  labs(x="Date", y="Hypo: Epi total P ratio") +
-  scale_x_date(date_breaks="1 year")
-```
-Hypo: Epi total P ratio plotted.
 
 b) plotting chl-a...
 
 ```{r}
-ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
+ggplot(data=subset(water, year(sampledate)> 2012), #need to subset data because of big gap between 2000 and 2008
        aes(x=sampledate,  y=Chla_ugL)) +
   geom_point() +
   geom_line() + 
@@ -94,7 +93,7 @@ Chl-a plotted.
 c) plotting Cyano relative biovolume...
 
 ```{r}
-ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because of big gap between 2000 and 2008
+ggplot(data=subset(water, year(sampledate)> 2012), #need to subset data because of big gap between 2000 and 2008
        aes(x=sampledate,  y=relbiovol)) +
   geom_point() +
   geom_line() + 
@@ -105,57 +104,268 @@ ggplot(data=subset(water, year(sampledate)> 2008), #need to subset data because 
 
 Cyanobacteria relative biovolume plotted.
 
+d) plotting P external loading...
+```{r}
+ggplot(data=subset(water, year(sampledate)> 2012), #need to subset data because of big gap between 2000 and 2008
+       aes(x=sampledate,  y=TotP_kgday_sum)) +
+  geom_point() +
+  geom_line() + 
+  theme_classic() +
+  labs(x="Date", y="Total P external loading (kg/day)") +
+  scale_x_date(date_breaks="1 year")
+```
+
 # Step 5. Transform data to time series:
 
-For time series, observations must be in equal time intervals. The simplest practice is to model each variable over time and calculate the predicted values for each observation. 
-Use first order moving average model (MA1) to interpolate missing observations (X_t = u + w_t + theta_1*w_t-1).
+For time series, observations must be in equal time intervals. The simplest 
+practice is to model each variable over time and calculate the predicted values 
+for each observation. Use first order moving average model (MA1) to interpolate 
+missing observations (X_t = u + w_t + theta_1*w_t-1).
 
-a) Converting Hypo: Epi total P data into time series...
-```{r}
-
-water_2009<- water %>%
-  filter(year(sampledate)==2019) %>%
-  mutate(obs=seq(as.Date("2009-04-01"), as.Date("2009-10-30"), length.out=14))
-
-
-HE_ratio_totP_ts<- xts(water$HE_ratio_TotP_mgL, water$sampledate)
-HE_ratio_totP_ts
-class(HE_ratio_totP_ts)
-## alternatively, you can use "as.ts(water_ts)" but you will lose the date info
-HE_ratio_totP_ma<- rollmean(HE_ratio_totP_ts, k=3)
-plot.ts(HE_ratio_totP_ma)
-```
-
-Hypo: Epi total P ratio converted to time series.
-
-b) Converting chl-a data into time series...
-```{r}
-Chl_ts<- xts(water_yrmo$Chl, water_yrmo$MoYr2)
-Chl_ts
-class(Chl_ts)
-```
-
-c) Converting Cyano rel biovol data to time series...
+a
+b) Chl-a interpolation:
 
 ```{r}
-Cyano_ts<- xts(water_yrmo$relbiovol, water_yrmo$MoYr2)
-Cyano_ts
-class(Cyano_ts)
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  water$sampledate, #across date
+  water$Chla_ugL, #the predicted values of Hypo P: Epi P ratio
+  xout=date_range) #for every 1 day
+Chla_interp <- data.frame( #creates a new data frame that has 
+  SampleDate = as.Date(interpolated$x), #measurements every 14 days
+                             Chla_ugL=interpolated$y) #predicted hypo: epi P ratio
+plot(subset(Chla_interp, SampleDate >= "2008/1/1"),
+     xlab="Date",
+     ylab="Total Chl-a (ugL)") #plots the new time series
 ```
 
-# Step 6. Perform lag regression model:
+c) Cyano rel biovol interpolation:
+```{r}
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  water$sampledate, #across date
+  water$relbiovol, #the predicted values of Hypo P: Epi P ratio
+  xout=date_range) #for every 14 days
+Cyan_interp <- data.frame( #creates a new data frame that has 
+  SampleDate = as.Date(interpolated$x), #measurements every 14 days
+                             CRB=interpolated$y) #predicted hypo: epi P ratio
+plot(subset(Cyan_interp, SampleDate >= "2008/1/1"),
+     xlab="Date",
+     ylab="Cyanobacteria Relative Biovolume (% total)") #plots the new time series
+```
 
-a) fitting a first order lag regression model...
+d) total P external loading interpolation:
 
 ```{r}
-chl_reg<- lm(water_yrmo$Chla_ugL_avg~water_yrmo$HE_ratio_TotP_avg)
-summary(chl_reg)
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  water$sampledate, #across date
+  water$TotP_lbday_sum, #the predicted values of Hypo P: Epi P ratio
+  xout=date_range) #for every 14 days
+ExtPload_interp <- data.frame( #creates a new data frame that has 
+  SampleDate = as.Date(interpolated$x), #measurements every 14 days
+                             TotPextld_lbday=interpolated$y) #predicted hypo: epi P ratio
+plot(subset(ExtPload_interp, SampleDate >= "2008/1/1"),
+     xlab="Date",
+     ylab="Total P external load (lb/day)") #plots the new time series
 
-chl_reg_lag<- lm(water_yrmo$Chla_ugL_avg~lag(water_yrmo$HE_ratio_TotP_avg, k=1))
-summary(chl_reg_lag)
-plot(chl_reg_lag)
-ggplot(data=water_yrmo, aes(y=Chla_ugL_avg, x=lag(water_yrmo$HE_ratio_TotP_avg, k=1)))+
-  geom_point()+
-  theme_classic()+
-  scale_y_continuous(trans="log10")
 ```
+
+# Step 6. Merge all time series into single data frame for analysis:
+
+```{r}
+water_int<- merge(Chla_interp, Cyan_interp, by="SampleDate")
+water_int<- merge(water_int, HEratio_interp, by="SampleDate")
+water_int<- merge(water_int, ExtPload_interp, by="SampleDate")
+write.csv(water_int, file="Cleaned_data/Mendota_ts.csv")
+```
+
+All three data files merged.
+
+# Step 7. Perform time series regression:
+
+Time series regression model assumes the time series "Y" has a linear 
+relationship with the times series "X". But, you need to subset the response 
+variable(s) to the CyanoHAB season (daynum > 195 & < 255).To do this, I need to
+make a new time series with the current chl-a and the t-k, when k = 7, 14, 30.
+
+a) Create new data frame with lagged variables...
+
+```{r}
+water_int_k<- transform(water_int, HE_P_ratio_k=lag(HE_P_ratio, n=7), #adds column with X_1, t-7 value
+                         TotPextld_lbday_k=lag(TotPextld_lbday, n=7), #adds column with X_2, t-7 value
+                         Chla_ugL_k=lag(Chla_ugL, n=7),#adds column with Y_1, t-7 value
+                         CRB_k=lag(CRB, n=7), #adds column with Y_2, t-7 value
+                         daynum=as.integer(format(SampleDate, "%j"))) #adds column with daynum for filtering
+water_int_k<- water_int_k %>%
+  filter(daynum < 255 & daynum > 195) #filters the new data frame for observations during CyanoHAB season
+```
+
+b) Check data for normality to determine model...
+
+```{r}
+hist(water_int_k$Chla_ugL, breaks=100) #prints histograph of Chl-a
+hist(water_int_k$HE_P_ratio, breaks=100) #prints histograph of P ratio
+hist(water_int_k$TotPextld_lbday, breaks=100)#prints histograph of P external loading
+```
+
+If data is normally distributed, then you can use simple linear regression or 
+ANOVA. If data is non-normally distributed, then you need to pick a 
+non-parametric model. The general linear model does not require 
+normal-distribution.
+
+Note, this data is positively skewed, so both predictor and response variables 
+need to be transformed to log 10, unless you use general linear model.
+
+c) Run simplest model for each response variable...
+
+Chla_t = Chla_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$Chla_ugL_7, 
+     xlab="Total Chlorophyll-a, 7 days prior (ug/L)",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk1<- glm(water_int_k$Chla_ugL  ~ water_int_k$Chla_ugL_k) #Y_1, t-k as predictor variable
+summary(regk1)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk1) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+```
+
+CRB_t = CRB_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$CRB  ~ water_int_k$CRB_k, 
+     xlab="Cyanobacteria relative biovolume, 7 days prior (as % total)",
+     ylab="Cyanobacteria relative biovolume (as % total)")
+regk1<- glm(water_int_k$CRB  ~ water_int_k$CRB_k) #Y_2, t-k as predictor variable
+summary(regk1)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk1) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+```
+
+d) Run 2nd model for each response variable...
+
+Chla_t = hypoP:epiP_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$HE_P_ratio_k, 
+     xlab="Hypo: Epi ratio of total P concentration (mg/L)",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk2<- glm(water_int_k$Chla_ugL  ~ water_int_k$HE_P_ratio_k) #X1 predictor variable
+summary(regk2)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk2) #prints diagnostic graphs for regression
+par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+```
+
+CRB_t = hypoP:epiP_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$CRB  ~ water_int_k$HE_P_ratio_k, 
+     xlab="Hypo: Epi ratio of total P concentration (mg/L)",
+     ylab="Cyanobacteria relative biovolume (as % total)")
+regk2<- glm(water_int_k$CRB  ~ water_int_k$HE_P_ratio_k) #X1 predictor variable
+summary(regk2)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk2) #prints diagnostic graphs for regression
+par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+```
+
+
+e) Run 3rd model for each response variable...  
+
+Chla_t = Pexternalload_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$TotPextld_lbday_k, 
+     xlab="Total P external loading, 7 days before (lb/day)",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk3<- glm(water_int_k$Chla_ugL  ~ #Y1 response variable
+              water_int_k$TotPextld_lbday_k) #X2 predictor variable
+summary(regk3)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk3) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+CRB_t = Pexternalload_t-k + error where k = 7...
+
+```{r}
+plot(water_int_k$CRB  ~ water_int_k$TotPextld_lbday_k, 
+     xlab="Total P external loading, 7 days before (lb/day)",
+     ylab="Cyanobacteria relative biovolume (as % total)")
+regk3<- glm(water_int_k$CRB  ~ #Y1 response variable
+              water_int_k$TotPextld_lbday_k) #X2 predictor variable
+summary(regk3)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk3) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+f) Run 4th model for each response variable...
+
+Chla_t = hypoP:epiP_t-k + Pexternalload_t-k + error where k = 7
+
+```{r}
+regk4<- glm(formula=Chla_ugL ~ #response variable
+             HE_P_ratio_k + #X1 predictor variable
+              TotPextld_lbday_k, #X2 predictor variable
+              data=water_int_k) #data frame
+summary(regk4)
+aov(regk4)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk4) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+CRB_t = hypoP:epiP_t-k + Pexternalload_t-k + error where k = 7
+
+```{r}
+regk4<- glm(formula=CRB ~ #response variable
+             HE_P_ratio_k + #X1 predictor variable
+              TotPextld_lbday_k, #X2 predictor variable
+              data=water_int_k) #data frame
+summary(regk4)
+aov(regk4)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk4) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+# Step 8. Compare models:
+
+```{r}
+anova(regk1, regk2) #model with the lowest AIC offers better fit
+anova(regk2, regk3) #model with the lowest AIC offers better fit
+```
+
+The 3rd model has the lowest AIC and residual deviance.
+
+# Step 9. Calculate variance explained by each variable:
+
+```{r}
+af<- aov(regk3) #prints out ANOVA summary table of model with Sum of Squares
+afss <- af$"Sum of Squares" #saves the sum of squares as new vector
+print(cbind(af, #prints the ANOVA summary table with new columns holding... 
+            PctExp=afss/sum(afss)*100)) # The calculated Percent Variability (as the sum square for each predictor / total sum squares *100)
+#Explained by each of the predictor terms in a new column PctExp. 
+
+```
+
+# Step 10. Making a 3D plot of the selected model:
+
+```{r}
+library(rgl)
+water_int<- read.csv(file="Cleaned_data/Mendota_ts.csv")
+```
+
+```{r}
+mycols <- colorRampPalette( c("#ff0000", "#00ff00") )
+plot3d( 
+  x=water_int$`HE_P_ratio`, y=water_int$`TotPextld_lbday`, z=log10(water_int$`Chla_ugL`+0.1), 
+  colvar=water_int$Chla_ugL,
+  type = 's', 
+  radius = 1,
+  xlab="Hypo: Epi P ratio", ylab="Total P external load (lb/day)", zlab="Total Chl-a (ug/L)")
+rglwidget()
+```
+
