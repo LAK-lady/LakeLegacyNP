@@ -5,8 +5,10 @@ date: '2023-05-24'
 output: html_document
 ---
 
-The purpose of this program is to process and analyze the Mendota nutrient 
-load from atmospheric deposition. 
+The purpose of this program is to calculate P load from atmospheric deposition. 
+P load from atm = P_wet + P_dry.
+P_wet = P concentration * daily Precipitation volume
+P_dry = P deposition * Lake surface area
 
 
 # Step 1. Load dependent packages and data needed:
@@ -28,29 +30,43 @@ precip<- read.csv(file="Original_data/NOAA_Weather_Mendota_2012to2022.csv")
 precip<- precip %>%
   mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y", #reformat as date
                             origin="1899-12-30"))
+precip<- precip %>%
+  filter(!Precipitation_in=="T") %>% #remove flagged data ("T")
+  mutate(Precipitation_in=as.numeric(Precipitation_in)) %>% #convert to numeric
+  filter(!is.na(Precipitation_in)) #remove NAs
 ```
 
 c) filter and mutate data as needed...
 ```{r}
-km2_m2= 1*1000000 #conversion factor from km^2 to m^2
-A_lake_m2 = 39.40*km2_m2 #surface area of Lake Mendota in m^2 
-in_m = 1/39.3701 #conversion factor 1 m = 39.701 inches
-m3_L = 1000/1 #conversion factor 1000 L = 1 m?^3
+km2_m2= 1000000/1 #conversion factor from km^2 to m^2
+A_lake_m2 = 39.40*km2_m2 #surface area of lake in m^2 
+mg_kg = 1/1000 #conversion factor from mg to kg
+
+in_m = 1/39.3701 #conversion factor from in to m (1 m = 39.701 inches)
+m3_L = 1000/1 #conversion factor from m^3 to L (1000 L = 1 m^3)
+
 P_atm_dry = 0.17 #mg P/m2-day rate of P dry deposition during summer (Soranno et al 1997)
 P_atm_wet = 0.032 #mg/L rate of P wet deposition
 
-precip<- precip %>%
-  mutate(Precipitation_in=as.numeric(Precipitation_in)) %>% #convert to numeric
-  filter(!is.na(Precipitation_in)) #remove NAs
 precip <- precip %>%
-  mutate(dryP_atm_kgday = (P_atm_dry*A_lake_m2)/1000, #calculate dry P deposited
-         wetP_atm_kgday = P_atm_wet*(A_lake_m2*(Precipitation_in*in_m)*m3_L)/1000, 
+  mutate(dryP_atm_kgday = ((P_atm_dry*A_lake_m2)*mg_kg), #calculate dry P deposited
+         wetP_atm_kgday = ((P_atm_wet*((Precipitation_in*in_m*A_lake_m2)*m3_L))*mg_kg), 
          #calculate wet P deposited
-         totP_atm_kgday = dryP_atm_kgday+wetP_atm_kgday) #calculate total P atm
+         totP_atm_kgday = (dryP_atm_kgday+wetP_atm_kgday) #calculate total P atm
 # deposited every day
+        ) 
 ```
 
-# Step 2. View the data:
+# Step 2. Summarize adn view the data:
+
+```{R}
+precip_sum <- precip %>%
+  mutate(daynum=format(sampledate, format = "%d"))
+precip_avg <-precip_sum %>%
+  filter(daynum >=195 & daynum <= 255)
+```
+The total external P loading from atmospheric deposition, during CyanoHAB season,
+was on average `r mean(precip_avg$totP_atm_kgday, na.rm=TRUE)` kg/day.
 
 ```{r}
 ggplot(data=precip, #need to subset data because of big gap between 2000 and 2008
@@ -79,5 +95,10 @@ totP_atm_interp <- data.frame( #creates a new data frame that has
 plot(totP_atm_interp,
      xlab="Date",
      ylab="Total P deposited from atmosphere (kg/day)") #plots the new time series
+```
+
+# Step 4. Save estimated P atm deposition as separate data file:
+
+```{r}
 write.csv(totP_atm_interp, file="Cleaned_data/Mendota_P_atm.csv")
 ```
