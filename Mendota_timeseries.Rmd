@@ -39,8 +39,8 @@ Me_Cyano<- read.csv(file="Cleaned_data/Mendota_Cyano.csv") #has the response var
 Me_Cyano<- Me_Cyano %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
          X=NULL) #remove extra column
-Me_P_extinfl<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") #has the external loading data
-Me_P_extinfl<- Me_P_extinfl %>%
+Me_P_ext<- read.csv(file="Cleaned_data/Mendota_P_allext.csv") #has the external P loading from streams
+Me_P_ext<- Me_P_ext %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
          X=NULL) #remove extra column=as.Date(sampledate, orig))
 ```
