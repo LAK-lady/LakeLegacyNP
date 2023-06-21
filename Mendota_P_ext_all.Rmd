@@ -57,7 +57,45 @@ extP_load <- extP_load %>%
   mutate(totextP_kgday=(totP_atm_kgday + TotP_kgday_sum))
 ```
 
-# Step 3. Save data as new data file:
+# Step 3. Summarize and view data:
+
+a) calculating average total P load for CyanoHAB season...
+
+```{r}
+extP_load_avg<- extP_load %>%
+  mutate(Yr=as.integer(format(sampledate, format="%Y")),
+         daynum=as.integer(format(sampledate, format="%j"))) %>%
+  filter(daynum>=195 & daynum <=255) %>%
+  summarize(atm_avg=mean(totP_atm_kgday, na.rm=TRUE),
+            atm_Se=(sd(totP_atm_kgday, na.rm=TRUE)/sqrt(length(totP_atm_kgday))),
+            str_avg=mean(TotP_kgday_sum, na.rm=TRUE),
+            str_se=(sd(TotP_kgday_sum, na.rm=TRUE)/sqrt(length(TotP_kgday_sum)))
+            )
+extP_load_avg
+```
+
+b) calculating total P load for year for atmospheric deposition and streams...
+
+```{r}
+extP_load_sum<- extP_load %>%
+  mutate(Yr=as.integer(format(sampledate, format="%Y")),
+         daynum=as.integer(format(sampledate, format="%j"))) %>%
+  group_by(Yr) %>%
+  summarize(atm=sum(totP_atm_kgday),
+            str=sum(TotP_kgday_sum)
+            ) %>%
+  mutate(Perc_atm=(atm/(atm+str)*100),
+         Perc_str=(str/(atm+str)*100)
+         )
+extP_load_sum
+```
+
+The average annual total atm P load was `r mean(extP_load_sum$atm)` +- 
+`r (sd(extP_load_sum$atm)/sqrt(length(extP_load_sum$atm)))` kg. Total atm deposit
+represents on average `r mean(extP_load_sum$Perc_atm)` percent of total external 
+P loading. 
+
+# Step 4. Save data as new data file:
 
 ```{r}
 write.csv(extP_load, file="Cleaned_data/Mendota_P_allext.csv")
