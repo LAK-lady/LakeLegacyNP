@@ -70,7 +70,7 @@ Nutrient and cyano data merged.
 c) Merging external loading with other data by sample date...
 
 ```{r}
-water<- merge(water, Me_P_extinfl, by="sampledate")
+water<- merge(water, Me_P_ext, by="sampledate")
 ```
 
 # Step 3. View data:
@@ -126,13 +126,17 @@ a
 b) Chl-a interpolation:
 
 ```{r}
+date_range<- seq( #creates a vector of sequence data
+  min(water$sampledate), #starting at the first sample date
+  max(water$sampledate), #ending at the last sample date
+  by="1 day") #observations every 14 days (bimonthly) 
 interpolated<- approx( #creates a vector of data that linearly interpolates 
   water$sampledate, #across date
   water$Chla_ugL, #the predicted values of Hypo P: Epi P ratio
   xout=date_range) #for every 1 day
 Chla_interp <- data.frame( #creates a new data frame that has 
   SampleDate = as.Date(interpolated$x), #measurements every 14 days
-                             Chla_ugL=interpolated$y) #predicted hypo: epi P ratio
+                             Chla_ugL=interpolated$y) #predicted chla
 plot(subset(Chla_interp, SampleDate >= "2008/1/1"),
      xlab="Date",
      ylab="Total Chl-a (ugL)") #plots the new time series
@@ -146,7 +150,7 @@ interpolated<- approx( #creates a vector of data that linearly interpolates
   xout=date_range) #for every 14 days
 Cyan_interp <- data.frame( #creates a new data frame that has 
   SampleDate = as.Date(interpolated$x), #measurements every 14 days
-                             CRB=interpolated$y) #predicted hypo: epi P ratio
+                             CRB=interpolated$y) #predicted CRB
 plot(subset(Cyan_interp, SampleDate >= "2008/1/1"),
      xlab="Date",
      ylab="Cyanobacteria Relative Biovolume (% total)") #plots the new time series
@@ -157,14 +161,14 @@ d) total P external loading interpolation:
 ```{r}
 interpolated<- approx( #creates a vector of data that linearly interpolates 
   water$sampledate, #across date
-  water$TotP_lbday_sum, #the predicted values of Hypo P: Epi P ratio
+  water$totextP_kgday, #the predicted values of Hypo P: Epi P ratio
   xout=date_range) #for every 14 days
 ExtPload_interp <- data.frame( #creates a new data frame that has 
   SampleDate = as.Date(interpolated$x), #measurements every 14 days
-                             TotPextld_lbday=interpolated$y) #predicted hypo: epi P ratio
+                             TotPext_kgday=interpolated$y) #predicted ext load
 plot(subset(ExtPload_interp, SampleDate >= "2008/1/1"),
      xlab="Date",
-     ylab="Total P external load (lb/day)") #plots the new time series
+     ylab="Total P external load (kg/day)") #plots the new time series
 
 ```
 
@@ -190,7 +194,7 @@ a) Create new data frame with lagged variables...
 
 ```{r}
 water_int_k<- transform(water_int, HE_P_ratio_k=lag(HE_P_ratio, n=7), #adds column with X_1, t-7 value
-                         TotPextld_lbday_k=lag(TotPextld_lbday, n=7), #adds column with X_2, t-7 value
+                         TotPext_kgday_k=lag(TotPext_kgday, n=14), #adds column with X_2, t-14 value
                          Chla_ugL_k=lag(Chla_ugL, n=7),#adds column with Y_1, t-7 value
                          CRB_k=lag(CRB, n=7), #adds column with Y_2, t-7 value
                          daynum=as.integer(format(SampleDate, "%j"))) #adds column with daynum for filtering
