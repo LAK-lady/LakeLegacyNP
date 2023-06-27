@@ -5,10 +5,266 @@ date: '2023-06-23'
 output: html_document
 ---
 
+The purpose of this program is to perform an impact analysis comparing the internal vs external loading on changes in Chl-a and CyanoDensity.
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(ggplot2) #needed for plots
+library(ggbreak) #needed for plot scale breaks
+library(dplyr) #needed for reshaping/reformating data
+library(xts) #needed to convert data frame to time series
+```
+
+b) Loading data...
+Note, ensure date data is formatted in R as Date.
+
+```{r}
+Me_algae<- read.csv(file="Cleaned_data/Mendota_Algae.csv") #read in the file with predictor variables
+Me_algae<- Me_algae %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+Me_extLoad<- read.csv(file="Cleaned_data/Mendota_P_allext.csv")
+Me_extLoad<- Me_extLoad %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+Me_intLoad<- read.csv(file="Cleaned_data/Mendota_P_water.csv")
+Me_intLoad <- Me_intLoad %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
+         X=NULL) #remove extra column
+```
+
+# Step 2. Merge the data into one file:
+Note, you can only merge two files at one time.
+
+a) merging response and external loading data....
+
+```{r}
+Me_all<- merge(Me_algae, Me_extLoad, by="sampledate")
+Me_all<- merge(Me_all, Me_intLoad, by="sampledate")
+Me_all<- Me_all %>%
+  mutate(Yr=Yr.x, #rename field
+         Yr.x=NULL, #delete extra field
+         daymum=daynum.x, #rename field
+         daynum.x=NULL, #delete extra field
+         Yr.y=NULL, #delete extra field
+         daynum.y=NULL) #delete extra field
+```
+
+# Step 3. Perform time series regression:
+Note, Time series regression model assumes the time series "Y" has a linear 
+relationship with the times series "X". But, you need to subset the response 
+variable(s) to the CyanoHAB season (daynum > 195 & < 255).To do this, I need to
+make a new time series with the current chl-a and the t-k, when k = 7, 14, 30.
+
+a) Create new data frame with lagged variables...
+
+```{r}
+water_int_k<- transform(Me_all, HE_ratio_k=lag(HE_ratio_TotP_mgL, n=7), 
+                        #adds column with X_1, t-7 value
+                        totextP_kgday_k=lag(totextP_kgday, n=14), 
+                        #adds column with X_2, t-14 value
+                        Chla_ugL_k=lag(Chla_ugL, n=7), 
+                        #adds column with Y_1, t-7 value
+                        CyanoDens_cellsmL_k=lag( CyanoDens_cellsmL, n=7) 
+                        #adds column with Y_2, t-7 value
+)
+water_int_k<- water_int_k %>%
+  filter(daynum < 255 & daynum > 195) 
+#filters the new data frame for observations during CyanoHAB season
+```
+
+b) Check data for normality to determine model...
+
+```{r}
+hist(water_int_k$Chla_ugL, breaks=100) #prints histograph of Chl-a
+#data right skewed
+hist(log10(water_int_k$Chla_ugL), breaks=100) #prints histograph of log10(Chl-a)
+#log-transform data is normal
+hist(water_int_k$totextP_kgday, breaks=100) #prints hist of ext load term
+#data right skewed
+hist(log10(water_int_k$totextP_kgday), breaks=100) #prints hist of ext load term
+#data more normal, but still right skewed
+hist(water_int_k$HE_ratio_TotP_mgL, breaks=100) #prints hist of int load term
+#data right-skewed
+hist(log10(water_int_k$HE_ratio_TotP_mgL), breaks=100) #prints hist of int load term
+#data more normal
+```
+
+If data is normally distributed, then you can use simple linear regression or 
+ANOVA. If data is non-normally distributed, then you need to pick a 
+non-parametric model. The general linear model does not require 
+normal-distribution.
+
+Note, this data is positively skewed, so both predictor and response variables 
+need to be transformed to log 10, unless you use general linear model.
+
+c) Run simplest model for each response variable...
+
+Chla_t = Chla_t-7 + error...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$Chla_ugL_k, 
+     xlab="Total Chlorophyll-a, 7 days prior (ug/L)",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk1<- glm(water_int_k$Chla_ugL  ~ water_int_k$Chla_ugL_k) #Y_1, t-k as predictor variable
+summary(regk1) #prints the glm output
+aov(regk1) #prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk1) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+```
+
+CD_t = CD_t-7 + error...
+
+```{r}
+plot(water_int_k$CyanoDens_cellsmL  ~ water_int_k$CyanoDens_cellsmL_k, 
+     xlab="Cyanobacteria density, 7 days prior (cells/mL)",
+     ylab="Cyanobacteria density (cells/mL)")
+regk1<- glm(water_int_k$CyanoDens_cellsmL  ~ water_int_k$CyanoDens_cellsmL_k) #Y_2, t-k as predictor variable
+summary(regk1) #prints the glm output
+aov(regk1)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk1) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+```
+
+d) Run 2nd model for each response variable...
+
+Chla_t = hypoP:epiP_t-7 + error...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$HE_ratio_k, 
+     xlab="Hypo: Epi ratio of total P, 7 days before",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk2<- glm(water_int_k$Chla_ugL  ~ water_int_k$HE_ratio_k) #X1 predictor variable
+summary(regk2)
+aov(regk2)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk2) #prints diagnostic graphs for regression
+par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+```
+
+CD_t = hypoP:epiP_t-7 + error...
+
+```{r}
+plot(water_int_k$CyanoDens_cellsmL  ~ water_int_k$HE_ratio_k, 
+     xlab="Hypo: Epi ratio of total P, 7 days before",
+     ylab="Cyanobacteria relative biovolume (as % total)")
+regk2<- glm(water_int_k$CyanoDens_cellsmL  ~ water_int_k$HE_ratio_k) #X1 predictor variable
+summary(regk2) #prints the glm output
+aov(regk2)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk2) #prints diagnostic graphs for regression
+par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+```
+
+e) Run 3rd model for each response variable...  
+
+Chla_t = ExtPLoad_t-14 + error...
+
+```{r}
+plot(water_int_k$Chla_ugL  ~ water_int_k$totextP_kgday_k, 
+     xlab="Total P external loading, 14 days before (kg/day)",
+     ylab="Total Chlorophyll-a (ug/L)")
+regk3<- glm(water_int_k$Chla_ugL  ~ #Y1 response variable
+              water_int_k$totextP_kgday_k) #X2 predictor variable
+summary(regk3) #prints the glm output
+aov(regk3)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk3) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+CD_t = ExtPLoad_t-14 + error...
+
+```{r}
+plot(water_int_k$CyanoDens_cellsmL  ~ water_int_k$totextP_kgday_k, 
+     xlab="Total P external loading, 14 days before (kg/day)",
+     ylab="Cyanobacteria Density (cells/mL)")
+regk3<- glm(water_int_k$CyanoDens_cellsmL  ~ #Y1 response variable
+              water_int_k$totextP_kgday_k) #X2 predictor variable
+summary(regk3)#prints the glm output
+aov(regk3)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk3) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+f) Run 4th model for each response variable...
+
+Chla_t = hypoP:epiP_t-7 + ExtPLoad_t-14 + error...
+
+```{r}
+regk4<- glm(formula=Chla_ugL ~ #response variable
+             HE_ratio_k + #X1 predictor variable
+              totextP_kgday_k, #X2 predictor variable
+              data=water_int_k) #data frame
+summary(regk4)#prints the glm output
+aov(regk4)#prints the sum of squares for the regression and residuals
+af<- aov(regk4) #prints out ANOVA summary table of model with Sum of Squares
+afss <- af$"Sum of Squares" #saves the sum of squares as new vector
+print(cbind(af, #prints the ANOVA summary table with new columns holding... 
+            PctExp=afss/sum(afss)*100)) # The calculated Percent Variability (as the sum square for each predictor / total sum squares *100)
+#Explained by each of the predictor terms in a new column PctExp. 
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk4) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+CD_t = hypoP:epiP_t-7 + ExtPLoad_t-14 + error...
+
+```{r}
+regk4<- glm(formula=CyanoDens_cellsmL ~ #response variable
+             HE_ratio_k + #X1 predictor variable
+              totextP_kgday_k, #X2 predictor variable
+              data=water_int_k) #data frame
+summary(regk4)
+aov(regk4)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regk4) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+# Step 4. Compare models:
+
+```{r}
+anova(regk2, regk3) #model with the lowest AIC offers better fit
+anova(regk3, regk4)
+```
+
+The 4th model has the lowest AIC and residual deviance.
+
+
+# Step 10. Making a 3D plot of the selected model:
+
+```{r}
+library(rgl)
+water_int<- read.csv(file="Cleaned_data/Mendota_ts.csv")
+```
+
+```{r}
+mycols <- colorRampPalette( c("#ff0000", "#00ff00") )
+plot3d( 
+  x=water_int$`HE_P_ratio`, y=water_int$`TotPextld_lbday`, z=log10(water_int$`Chla_ugL`+0.1), 
+  colvar=water_int$Chla_ugL,
+  type = 's', 
+  radius = 1,
+  xlab="Hypo: Epi P ratio", ylab="Total P external load (lb/day)", zlab="Total Chl-a (ug/L)")
+rglwidget()
+```
 
 
 
-______________Old Colde_____________________
+
+
+
+
+
+
+______________Old Code_____________________
 
 # Step 4. Analyze the response variables by predictors:
 
