@@ -43,102 +43,201 @@ a) filter and transform data for total algal biomass (as Chl-a) by sample date..
 
 ```{r}
 Me_Chl<- Chl %>%
-  mutate(Chla_ugL= tri_chl_spec) %>% #assign variable name and units to column with data
-  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  filter(lakeid=="ME", #filter for Lake Mendota
-         depth_range_m=="0-8", #integrated sample from 0 to 8m
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Chla_ugL= tri_chl_spec, #renames field to common name with units
+         Yr=year4) %>% #renames field to common name
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
          rep=="1") %>% #remove QA analytic replicates
-  mutate(sampledate=as.Date(sampledate,
-                            origin="1899-12-30")) %>% #tells R to format as date
-  select(sampledate, Chla_ugL) #selects only fields of interest
+  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
+  select(sampledate, Yr, Chla_ugL) #selects only fields of interest
+```
 
+Chl-a data filtered and transformed. 
+
+Plotting Chl-a data available...
+
+```{r}
+plot(Me_Chl$sampledate, Me_Chl$Chla_ugL,
+     xlab="Date",
+     ylab="Total Chl-a (ugL)") #plots the new time series
+```
+
+Chl-a data plotted. 
+
+b) filter and transform data for cyanobacteria relative biovolume (CRB) by sample date...
+
+```{r}
+Me_cyanoRB<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Yr=year4) %>% #renames field to coomon name
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
+            cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(relbiovol<=100) #remove any invalid records (>100%  not valid entry)          
+```
+
+CRB data filtered and transformed.
+
+Plotting CRB data available...
+
+```{r}
+par(mfrow=c(1,2)) #returns graphing viewer to 2 plots per page
+plot(Me_cyanoRB$sampledate, Me_cyanoRB$relbiovol, #point plot x, y
+     xlab="Date",
+     ylab="Cyanobacteria Relative Biovolume (as % total algal biovolume)") 
+plot(Me_cyanoRB$sampledate, Me_cyanoRB$cellsmL, #point plot x, y
+     xlab="Date",
+     ylab="Cyanobacteria Density (cells/mL)") #plots the new time series
+par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+```
+
+CRB data plotted. 
+
+# Step 3. Interpolate missing data values for equal time intervals between observations:
+
+a) interpolating Chl-a data...
+
+```{r}
 date_range<- seq( #creates a vector of sequence data
   min(Me_Chl$sampledate), #starting at the first sample date
   max(Me_Chl$sampledate), #ending at the last sample date
   by="1 day") #observations every day  
 interpolated<- approx( #creates a vector of data that linearly interpolates 
   Me_Chl$sampledate, #across date
-  Me_Chl$Chla_ugL, #the predicted values of Hypo P: Epi P ratio
+  Me_Chl$Chla_ugL, #the predicted values of Chl-a
   xout=date_range) #for every 1 day
 Chla_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #measurements every 14 days
-                             Chla_ugL=interpolated$y) #predicted hypo: epi P ratio
-Me_Chla_water<- Chla_interp %>%
-  mutate(Yr=as.integer(year(sampledate)), #adds field with year
-         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month and year
-         daynum=as.integer(yday(sampledate)), #adds field with Julian date
-         Mo=as.integer(month(sampledate))) #adds field with month)
-plot(Me_Chla_water$sampledate, Me_Chla_water$Chla_ugL,
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  Chla_ugL=interpolated$y) #renames the new vector as common field with units
+```
+
+Chl-a data interpolated.
+
+Plotting new Chl-a time series...
+
+```{r}
+plot(Chla_interp$sampledate, Chla_interp$Chla_ugL,
      xlab="Date",
      ylab="Total Chl-a (ugL)") #plots the new time series
 ```
 
+New Chl-a time series plotted. 
+
+b) interpolating CRB data...
+
 ```{r}
-write.csv(Me_Chla_water, file = "Cleaned_data/Mendota_Chl.csv") #save new file in folder "Cleaned_data"
+date_range<- seq( #creates a vector of sequence data
+  min(Me_cyanoRB$sampledate), #starting at the first sample date
+  max(Me_cyanoRB$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_cyanoRB$sampledate, #across date
+  Me_cyanoRB$relbiovol, #the predicted values of CRB
+  xout=date_range) #for every 1 day
+CRB_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  Cyanorelbiovol=interpolated$y) #renames the new vector as common field with units
 ```
 
-Chl-a by sample date complete. File saved in Cleaned_data folder.
+CRB interpolated.
 
-b) filter data for cyanobacteria relative biovolume by sample date...
+Plotting new CRB time series...
 
 ```{r}
-Me_cyanoRB<- phyto %>%
-  filter(lakeid=="ME") %>% #filters data for Lake Mendota 
-  filter(depth_range=="0-8m") %>% #filter for depth 0-8m
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format 
-          #data as date
-  filter(division=="Cyanophyta") %>%
-  group_by(sampledate) %>% #group all observations by sample date and 
-  #division
-  summarize(relbiovol=sum(relative_total_biovolume), #add all biovoumes together
-            cellsmL=sum(cells_per_ml)) %>% #adds all the cells/mL together
-  filter(relbiovol<=100) %>% #there is 1 record  that had > 100 %, must be error         
-  mutate(daynum=as.integer(format(sampledate, "%j")), #adds field with Julian day
-         MoYr=format(sampledate, "%m/01/%Y"), #add field with month/year
-         Yr=as.integer(format(sampledate, "%Y")), #adds field with year
-         Mo=as.integer(format(sampledate, "%m")))  #adds field with month
-write.csv(Me_cyanoRB, file="Cleaned_data/Mendota_Cyano.csv") #use if first time running program
+plot(CRB_interp$sampledate, CRB_interp$Cyanorelbiovol,
+     xlab="Date",
+     ylab="Cyanobacteria Relative Biovolume (as % total algal biovolume)") #plots the new time series
 ```
 
-Cyanobacteria as percent of total biovolume and as cells/mL by sample date complete. File saved in Cleaned_data folder.
+New CRB time series plotted. 
 
-# Step 3.  Summarize and view the data:
+c) interpolating Cyanobacteria Density (CD) data...
 
-a) Plot Chl-a by day of year...
 ```{r}
-ggplot(data=Me_Chla_water, 
+date_range<- seq( #creates a vector of sequence data
+  min(Me_cyanoRB$sampledate), #starting at the first sample date
+  max(Me_cyanoRB$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_cyanoRB$sampledate, #across date
+  Me_cyanoRB$cellsmL, #the predicted values of CD
+  xout=date_range) #for every 1 day
+CD_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  CyanoDens_cellsmL=interpolated$y) #renames the new vector as common field with units
+```
+
+CyanoDens_cellsmL interpolated.
+
+Plotting new CD time series...
+
+```{r}
+plot(CD_interp$sampledate, CD_interp$CyanoDens_cellsmL,
+     xlab="Date",
+     ylab="Cyanobacteria Density (cells/mL)") #plots the new time series
+```
+
+New CD time series plotted. 
+
+# Step 4.  Merge the three time series:
+Note, you can only merge 2 time series at a time.
+
+```{r}
+Me_Algae<- merge(CD_interp, Chla_interp, by="sampledate") #merge CD and Chl-a data time series first
+Me_Algae<- merge(Me_Algae, CRB_interp, by = "sampledate") #merge combined time series with CRB data second
+```
+
+Time series merged.
+
+# Step 5. Summarize and view the data:
+
+a) adding fields needed for plotting...
+
+```{r}
+Me_Algae<- Me_Algae %>%
+  mutate(Yr=as.integer(format(sampledate, format="%Y")), #adds field with year
+         daynum=as.integer(format(sampledate, format="%j"))) #adds field with Julian day number
+```
+
+b) Plot Chl-a by day of year...
+```{r}
+ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data gap from 2002 to 2008 and in 2017
        aes(x=daynum,y=Chla_ugL)) + 
-  geom_point(aes(col=Yr))+
-  labs(title="Lake Mendota, WI", #plot title
-       x="Day of Year", #x axis label
-       y="Extracted Chl-a (ug/L)", #y axis label
-       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
-  ylim(0, max(Me_Chla_water$Chla_ugL)) +
-  scale_x_continuous(breaks = seq(0, max(Me_Chla_water$daynum), #places axis tick marks
-                                  by=30)) + #every 30 days (1 month) - CHANGE AS
-  # NEEDED
+  geom_point(aes(col=Yr))+ #colors points by year 
+  labs(title="Lake Mendota, WI", #add title
+       x="Day of Year", #add x axis label
+       y="Extracted Chl-a (ug/L)", #add y axis label
+       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
+       Black solid line represents smoothed loess curve") + #add caption for notation
+  ylim(0, max(Me_Algae$Chla_ugL)) + #limit y-axis
+  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month)
   theme_classic()+
-  scale_color_continuous(name="Year")+
-  geom_smooth() + #adds loess curve (moving average regression model)
+  scale_color_continuous(name="Year")+ #adds color scale for year
+  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box days outside of CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box days outside of CyanoHAB season
 ```
 
-b) Plot Chl-a each year, with coding for CyanoHAB severity:
+c) Plot Chl-a each year, with coding for CyanoHAB severity:
 
 ```{r}
-ggplot(data=Me_Chl, 
+ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data gap from 2002 to 2008 and in 2017
        aes(x=daynum, y=Chla_ugL)) + 
-  geom_point() +
-  geom_line() +
-  scale_y_continuous(trans="log10") +
-  facet_wrap(~Yr) +
-  labs(title="Lake Mendota, WI", 
-       x="Day of Year", 
-       y="Total Algal Biomass as Chl-a (ug/L)",
-       caption="Grey shading indicates CyanoHAB season, mid-July to mid-Sept.") +
+  geom_point() + #point plot
+  geom_line() + #add line between data points
+  scale_y_continuous(trans="log10") + # log-transforms y axis
+  facet_wrap(~Yr) + #separates out plots by year
+  labs(title="Lake Mendota, WI", #adds title
+       x="Day of Year",  #adds x-axis label
+       y="Total Algal Biomass as Chl-a (ug/L)", #adds y-axis label
+       caption="White shading indicates CyanoHAB season, mid-July to mid-Sept.") + #adds caption for notation
   theme_classic()+
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
@@ -149,332 +248,54 @@ ggplot(data=Me_Chl,
   annotate('rect', xmin=0, xmax=Inf, ymin=20, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
-c) Plot Cyanobacteria relative biovolume by day of year...
+d) Plot CRB by day of year...
 
 ```{r}
-ggplot(data=Me_cyanoRB, aes(x=daynum, y=relbiovol)) + 
-  geom_point() + 
-  labs(title = "Lake Mendota, WI",
-       x="Day of Year",
-       y="Cyanobacteria relative biovolume (% of total algal biovolume)",
-       caption="Grey shading indicates CyanoHAB season, mid-July to mid-Sept.") +
+ggplot(data=Me_Algae, aes(x=daynum, y=Cyanorelbiovol)) + 
+  geom_point(aes(col=Yr))+ #colors points by year
+  labs(title = "Lake Mendota, WI", #adds title
+       x="Day of Year", #adds x-axis label
+       y="Cyanobacteria relative biovolume (% of total algal biovolume)", #adds y-xis label
+       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
+       Black solid line represents smoothed loess curve") + #add caption for notation
+  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month)
   theme_classic()+
-  geom_hline(yintercept = 50, lty="dashed", col="red") +
-  geom_smooth() + #adds loess curve (moving average regression model)
+  scale_color_continuous(name="Year")+ #adds color scale for year
+  theme_classic()+
+  geom_hline(yintercept = 50, lty="dashed", col="red") + #adds horizontal line to indicate 50% of total biovolume
+  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=255, xmax=Inf, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
 ```
 
-d) Plot Cyanobacteria relative biovolume by year...
+e) Plot CD by day of year...
 
 ```{r}
-ggplot(data=Me_cyanoRB, aes(x=daynum, y=relbiovol)) + 
-  geom_point() + 
-  facet_wrap(~Yr) +
-  labs(title = "Lake Mendota, WI",
-       x="Day of Year",
-       y="Cyanobacteria relative biovolume (% of total algal biovolume)",
-       caption="Grey shading indicates CyanoHAB season, mid-July to mid-Sept. \n
-       Red dashed horizontal line is set at 50% total biovolume. \n
-       Source: Lake Mendota,North Temperate Lakes Dataset") +
+ggplot(data=Me_Algae, aes(x=daynum, y=CyanoDens_cellsmL)) + 
+  geom_point(aes(col=Yr))+ #colors points by year
+  labs(title = "Lake Mendota, WI", #adds title
+       x="Day of Year", #adds x-axis label
+       y="Cyanobacteria Density (cells/mL)", #adds y-xis label
+       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
+       Black solid line represents smoothed loess curve") + #add caption for notation
+  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
+                                  by=30)) + #every 30 days (1 month)
   theme_classic()+
-  geom_hline(yintercept = 50, lty="dashed", col="red") +
-  geom_smooth() + #adds loess curve (moving average regression model)
+  scale_color_continuous(name="Year")+ #adds color scale for year
+  theme_classic()+
+  geom_hline(yintercept = 50, lty="dashed", col="red") + #adds horizontal line to indicate 50% of total biovolume
+  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=255, xmax=Inf, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
 ```
 
-# Step 4. Analyze the response variables by predictors:
-
-a) Question: Does epilimnion total P concentration correlate with chl-a?
-
-combining data files...
-```{r}
-Chl_moyr<- Me_Chl %>%
-  group_by(MoYr) %>%
-  summarise(Avg_Chla_ugL=mean(Chla_ugL, na.rm=TRUE)) %>%
-  mutate(MoYr=as.Date(MoYr, format="%m/%d/%Y", origin="1899-12-30"))
-P_Chl<- merge(Chl_moyr, Pratio, by="MoYr", all=TRUE)
-P_Chl<- P_Chl %>%
-  filter(!is.na(TotP_mgL_Epi),
-         !is.na(TotP_mgL_Hypo)) 
-```
-
-setting up plot...
+# Step 6. Save as new data file:
 
 ```{r}
-ggplot(data=P_Chl, aes(x=TotP_mgL_Epi, y=Avg_Chla_ugL))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Epilimnion total phosphorus (mg/L)",
-       y="Total Algal Biomass as Chl-a (ug/L), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-b) Question: Does hypolimion total P concentration correlate with Chl-a?
-
-```{r}
-ggplot(data=P_Chl, aes(x=TotP_mgL_Hypo, y=Avg_Chla_ugL))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Hypolimnion total phosphorus (mg/L)",
-       y="Total Algal Biomass as Chl-a (ug/L), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-c) Question: Does Hypo: Epi total P concentration correlate with Chl-a?
-
-```{r}
-ggplot(data=P_Chl, aes(x=HE_ratio_TotP_mgL, y=Avg_Chla_ugL))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  scale_x_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Hypo: Epi total phosphorus ratio (mg/L)",
-       y="Total Algal Biomass as Chl-a (ug/L), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-
-d) Question: Does epilimnion total P concentration correlate with cyano relative biovolume?
-
-combining data files...
-```{r}
-CyanoRB_moyr<- Me_cyanoRB %>%
-  mutate(MoYr=format(sampledate, "%m/01/%Y")) %>%
-  group_by(MoYr) %>%
-  summarise(Avg_relbiovol=mean(relbiovol, na.rm=TRUE)) %>%
-  mutate(MoYr=as.Date(MoYr, format="%m/%d/%Y", origin="1899-12-30"))
-P_Cyano<- merge(CyanoRB_moyr, Pratio, by="MoYr", all=TRUE)
-P_Cyano<- P_Cyano %>%
-  filter(!is.na(TotP_mgL_Epi),
-         !is.na(TotP_mgL_Hypo)) 
-```
-
-setting up plot...
-
-```{r}
-ggplot(data=P_Cyano, aes(x=TotP_mgL_Epi, y=Avg_relbiovol))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Epilimnion total phosphorus (mg/L)",
-       y="Cyanobacteria relative biovolume (as % of total), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-e) Question: Does hypolimnion total P concentration correlate with cyano relative biovolume?
-
-```{r}
-ggplot(data=P_Cyano, aes(x=TotP_mgL_Hypo, y=Avg_relbiovol))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Hypolimnion total phosphorus (mg/L)",
-       y="Cyanobacteria relative biovolume (as % of total), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-f) Question: Does hypo: epi total P concentration correlate with cyano relative biovolume?
-
-```{r}
-ggplot(data=P_Cyano, aes(x=HE_ratio_TotP_mgL, y=Avg_relbiovol))+
-  geom_point() + 
-  scale_y_continuous(trans="log10") +
-  scale_x_continuous(trans="log10") +
-  labs(title = "Lake Mendota, WI",
-       x="Hypolimnion total phosphorus (mg/L)",
-       y="Cyanobacteria relative biovolume (as % of total), log scale",
-       caption= "Source: Lake Mendota,North Temperate Lakes Dataset") +
-  theme_classic()+
-  geom_smooth()  #adds loess curve (moving average regression model)
-```
-
-____________NEEDS UPDATED_____________________________
-
-g) Question: Does total P loading from inflows predict Chl-a?
-
-```{r}
-ggplot(data=P_Chl, aes(x=TotPload_gday/1000, y=Chla_ugL)
-       ) + 
-  geom_point() +
-  theme_classic() + 
-  labs(title="Lake Mendota, WI",
-       x="Total P loading (kg/day)",
-       y="Total Algal Biomass (Chl-a ug/L)") +
-  scale_y_continuous(trans = 'log10') +
-  scale_x_continuous(trans = 'log10') 
-```
-
-Nope, not at all. Plot of Chla by total P loading shows no correlation.
-
-Question: Does total P export in outflow predict Chl-a?
-
-```{r}
-ggplot(data=P_Chl, aes(x=TotPexp_gday/1000, y=Chla_ugL)
-       ) + 
-  geom_point() +
-  theme_classic() + 
-  labs(title="Lake Mendota, WI",
-       x="Total P export (kg/day)",
-       y="Total Algal Biomass (Chl-a ug/L)") +
-  scale_y_continuous(trans = 'log10') +
-  scale_x_continuous(trans = 'log10') 
-```
-
-Plot of Chla by total P export shows no correlation.
-
-Question: Does total P stored/released predict Chl-a?
-
-```{r}
-ggplot(data=P_Chl, aes(x=P_stored_gday/1000, y=Chla_ugL)
-       ) + 
-  geom_point() +
-  theme_classic() + 
-  labs(title="Lake Mendota, WI",
-       x="Total P stored (+) or released (-) (kg/day)",
-       y="Total Algal Biomass (Chl-a ug/L)") +
-  scale_y_continuous(trans = 'log10') +
-  geom_vline(xintercept = 0, lty="dashed")
-```
-
-Plot of Chla by P stored or released shows almost all the data points to the left of the zero line. 
-
-```{r}
-ggplot(data=subset(P_Chl, daynum >= 195 & daynum <=255), aes(x=P_stored_gday/1000, y=Chla_ugL)) + 
-  geom_point() +
-  theme_classic() + 
-  labs(title="CyanoHAB Season, Lake Mendota, WI",
-       x="Total P stored (+) or released (-) (kg/day)",
-       y="Total Algal Biomass (Chl-a ug/L)") +
-  #scale_y_continuous(trans='log10') +
-  #scale_x_continous(trans='log10) +
-  geom_vline(xintercept = 0, lty="dashed")
-```
-
-Even during the CyanoHAB season, there's no relationship!!!
-
-
-Plot Chl-a by internal load:
-
-```{r}
-ggplot(data=P_Chl_yr) + 
-  geom_point(aes(x=Net_IL_gyr, y=MaxChl_ugL)) +
-  geom_line(aes(x=TotPload_gyr, y=MaxChl_ugL)) +
-  theme_classic() + 
-  labs(title="CyanoHAB Season, Lake Mendota, WI",
-       x="Net Annual Internal Loading (g/yr)",
-       y="Maximum Algal Biomass (Chl-a ug/L)") 
-  #scale_y_continuous(trans='log10') +
-  #scale_x_continous(trans='log10) +
-```
-
-
-
-
-
-```{r}
-hypo_sum_ME_TP<- read.csv(file.choose(), header=TRUE) #choose from Cleaned data folder
-hypo_sum_ME_TP$mo=NULL #remove unwanted column
-hypo_sum_ME_TP <- hypo_sum_ME_TP %>%
-  mutate(sampledate=as.Date(sampledate, 
-                            format="%m/%d/%Y",
-                            origin="1899-12-30")) #tells R to format 
-          #data as date
-sum_ME_Chl<- sum_ME_Chl %>%
-  mutate(sampledate=as.Date(sampledate, 
-                            format="%m/%d/%Y",
-                            origin="1899-12-30")) #tells R to format 
-          #data as date
-combA<- merge(hypo_sum_ME_TP, sum_ME_Chl, 
-              by=c("sampledate", "year4", "daynum", "Use_Jdate"),
-              all.x=TRUE,all.y=TRUE)
-combA$sd_hypo_TP=NULL #don't need this column
-combA<- na.omit(combA) #removes NAs (from 140 records to 59 records)
-
-ggplot(data=combA, aes(x=(mean_hypo_TP*1000), y=Chl_ugL)) + 
-  geom_point()+
-  geom_smooth(method="lm", data=subset(combA, mean_hypo_TP > 0.1)) +
-  geom_smooth(method="lm", data=subset(combA, mean_hypo_TP < 0.1)) +
-  theme_classic()+
-  labs(x="Hypolimion total P (ug/L)",
-       y="Total algal biomass (ug Chl-a/L)",
-       title="Summer, mid-July to mid-September, Lake Mendota, WI",
-       caption="Source: Lake Mendota, North Temperate Lakes Dataset")
-```
-
-First, join the two tables...
-
-```{r}
-sum_ME_Chl<-read.csv(file.choose(), header=TRUE) #file in Cleaned_data folder
-sum_ME_Chl$depth_range_m=NULL
-sum_ME_Chl$mo=NULL
-joined_TPChl<- merge(hypo_sum_ME_TP, sum_ME_Chl, by=c("sampledate", "year4",
-                                                      "Use_Jdate","daynum"))
-joined_TPChl_epi<-merge(epi_sum_ME_TP, sum_ME_Chl, by=c("sampledate", "year4",
-                                                      "Use_Jdate","daynum"))
-```
-
-Then, build the plot for EPI TP...
-
-```{r}
-ylim.prim <- c(0, 0.15)   #total P range in mg/L
-ylim.sec <- c(0, 60)    # chl-a range in ug/L
-
-b <- diff(ylim.prim)/diff(ylim.sec)
-a <- ylim.prim[1] - b*ylim.sec[1] 
-
-ggplot(data=joined_TPChl_epi, aes(x=Use_Jdate)) + 
-  facet_wrap(~year4) +
-  geom_line(aes(y=totpuf_sloh)) +
-  geom_point(aes(y = a + Chl_ugL*b)) +
-  theme_classic() +
-  theme(legend.justification=c("right", "top")) +
-  labs(x="Day of Year", y="Mean Total P (ug/L)",
-       title="Summer Epilimnion, mid-July to mid-September, Lake Mendota, WI",
-       caption="Source: Lake Mendota,North Temperate Lakes Dataset",
-       colour="Year") +
-  scale_y_continuous(sec.axis=sec_axis(~ (. - a)/b, 
-                                       name="Total Chlorophyll-a (ug/L)")) +
-  geom_hline(yintercept=20/400, col="red", lty="dashed")
-```
-
-Then, build the plot for Hypo TP...
-
-```{r}
-ylim.prim <- c(0, 0.6)   #total P range in mg/L
-ylim.sec <- c(0, 60)    # chl-a range in ug/L
-
-b <- diff(ylim.prim)/diff(ylim.sec)
-a <- ylim.prim[1] - b*ylim.sec[1] 
-
-ggplot(data=joined_TPChl, aes(x=Use_Jdate)) + 
-  facet_wrap(~year4) +
-  geom_line(aes(y=mean_hypo_TP)) +
-  geom_point(aes(y = a + Chl_ugL*b)) +
-  theme_classic() +
-  theme(legend.justification=c("right", "top")) +
-  labs(x="Day of Year", y="Hypo Total P (ug/L)",
-       title="Summer Hypolimnion, mid-July to mid-September, Lake Mendota, WI",
-       caption="Source: Lake Mendota,North Temperate Lakes Dataset",
-       colour="Year") +
-  scale_y_continuous(sec.axis=sec_axis(~ (. - a)/b, 
-                                       name="Total Chlorophyll-a (ug/L)")) +
-  geom_hline(yintercept=20/100, col="red", lty="dashed")
+write.csv(Me_Algae, file="Cleaned_data/Mendota_Algae.csv")
 ```
