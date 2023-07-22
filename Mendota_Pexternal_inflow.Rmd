@@ -31,6 +31,10 @@ b) Loading the data needed...
 PB_TotP_flow<- read.csv(file="Cleaned_data/Inflow_PheasantBranch_TotP.csv")
 YR_TotP_flow<- read.csv(file="Cleaned_data/YaharaRiver_TotP_combined.csv")
 SMC_TotP_flow<- read.csv(file="Cleaned_data/Inflow_SixMileCreek_TotP.csv")
+
+PB_SRP_flow<- read.csv(file="Cleaned_data/Inflow_PheasantBranch_SRP.csv")
+YR_SRP_flow<- read.csv(file="Cleaned_data/YaharaRiver_DissP_combined.csv")
+SMC_SRP_flow<- read.csv(file="Cleaned_data/Inflow_SixMileCreek_SRP.csv")
 ```
 
 Data loaded.
@@ -68,6 +72,24 @@ SMC_TotP_flow<- SMC_TotP_flow %>%
          TotP_kgday=(Q_cfs*TotP_mgL*cf_L*sec_day*mg_kg)
          )%>%
   filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+
+PB_SRP_flow<- PB_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         Q_cfs=Qout_cfs, #rename column for consistency across data frames
+         Qout_cfs=NULL, #remove excess column
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         ) %>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+YR_SRP_flow<- YR_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         )%>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+SMC_SRP_flow<- SMC_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         )%>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
 ```
 
 Data transformed.
@@ -92,6 +114,24 @@ Inflows<- Inflows %>%
          daynum=as.integer(format(sampledate, format="%j")), #add column with 
          #daynum for filtering
          Yr=as.integer(format(sampledate, format="%Y"))) 
+
+PB_SRP_flow <- PB_SRP_flow %>%
+  mutate(Inflow="Pheasant Branch") #add column with name of inflow
+YR_SRP_flow <- YR_SRP_flow %>%
+  mutate(Inflow="Yahara River") #add column with name of inflow
+SMC_SRP_flow <- SMC_SRP_flow %>%
+  mutate(Inflow="Six-mile Creek") #add column with name of inflow
+
+Inflows<- merge(PB_SRP_flow, YR_SRP_flow, #merge two data frames
+                all=TRUE) #keep all records for both data frames
+Inflows<- merge(Inflows, SMC_SRP_flow, #merge two data frames
+                all=TRUE) #keep all records for both data frames                
+Inflows<- Inflows %>%
+  mutate(Site_ID=NULL, #remove excess column
+         Source_ID=NULL, #remove excess column
+         daynum=as.integer(format(sampledate, format="%j")), #add column with 
+         #daynum for filtering
+         Yr=as.integer(format(sampledate, format="%Y")))
 ```
 
 The three data frames are merged.
@@ -112,6 +152,20 @@ plot(SMC_TotP_flow$sampledate, SMC_TotP_flow$TotP_kgday,
      xlab = "Sample Date", ylab = "Total P Loading (kg/day)", 
      main = "Six-Mile Creek", cex.lab=1.5, cex.main=2, cex.axis=2)
 par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+
+layout(matrix(c(1,2,3),3,1)) # optional 3 graphs/page
+plot(PB_SRP_flow$sampledate, PB_SRP_flow$SRP_kgday, 
+     xlab = "Sample Date", ylab = "SRP Loading (kg/day)", 
+     main = "Pheasant Branch", cex.lab=1.5, cex.main=2, cex.axis=2)
+plot(YR_TotP_flow$sampledate, YR_TotP_flow$TotP_kgday, 
+     xlab = "Sample Date", ylab = "Total P Loading (kg/day)", 
+     main = "Yahara River", cex.lab=1.5, cex.main=2, cex.axis=2)
+plot(SMC_TotP_flow$sampledate, SMC_TotP_flow$TotP_kgday, 
+     xlab = "Sample Date", ylab = "Total P Loading (kg/day)", 
+     main = "Six-Mile Creek", cex.lab=1.5, cex.main=2, cex.axis=2)
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+
+
 ```
 
 Data available for all three inflows from 2012 to 2022.
