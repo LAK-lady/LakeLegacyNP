@@ -1,0 +1,131 @@
+---
+title: "Mendota_SRPexternal_inflow.Rmd"
+author: "Lauren Knose"
+date: "2023-07-26"
+output: html_document
+---
+
+The purpose of this program is to calculate the external soluble reactive P (SRP)
+loading to Lake Mendota, from the three main inflows of Pheasant Branch (PB), 
+Yahara River (YR), and Six-Mile Creek (SMC). 
+SRP_inflow = SRP concentration * flow rate
+
+# Step 1. Load the data and packages needed:
+
+a) Loading the packages needed...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(lubridate) #needed for date conversion functions
+library(ggplot2) #needed for plotting
+```
+
+Packages loaded.
+
+
+b) Loading the data needed...
+
+```{r}
+PB_SRP_flow<- read.csv(file="Cleaned_data/Inflow_PheasantBranch_SRP.csv")
+YR_SRP_flow<- read.csv(file="Cleaned_data/YaharaRiver_DissP_combined.csv")
+SMC_SRP_flow<- read.csv(file="Cleaned_data/Inflow_SixMileCreek_SRP.csv")
+```
+
+Soluble Reactive P (SRP) data loaded.
+
+# Step 2. Transform and merge the data:
+
+a) transforming the data...
+
+```{r}
+lb_kg= 0.453592/1 #conversion factor from lb to kg (1lb = 0.453592 kg)
+cf_L= 1/0.0353147 #conversion factor from ft^3 to L (1 ft^2 = 28.3168 L)
+sec_day= 86400/1 #conversion factor from sec to day (86400 sec = 1 day)
+mg_kg= 1/1000000 #conversion factor from mg to kg (1,000,000 mg = 1 kg)
+```
+
+Conversion coefficients defined.
+
+```{r}
+PB_SRP_flow<- PB_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         Q_cfs=Qout_cfs, #rename column for consistency across data frames
+         Qout_cfs=NULL, #remove excess column
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         ) %>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+YR_SRP_flow<- YR_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         )%>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+SMC_SRP_flow<- SMC_SRP_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"),
+         SRP_kgday=(Q_cfs*SRP_mgL*cf_L*sec_day*mg_kg)
+         )%>%
+  filter(Q_cfs>=0) #remove any records where there is a negative flow rate
+```
+
+SRP data transformed and filtered.
+
+```{r}
+PB_SRP_flow <- PB_SRP_flow %>%
+  mutate(Inflow="Pheasant Branch") #add column with name of inflow
+YR_SRP_flow <- YR_SRP_flow %>%
+  mutate(Inflow="Yahara River") #add column with name of inflow
+SMC_SRP_flow <- SMC_SRP_flow %>%
+  mutate(Inflow="Six-mile Creek") #add column with name of inflow
+
+Inflows_SRP<- merge(PB_SRP_flow, YR_SRP_flow, #merge two data frames
+                all=TRUE) #keep all records for both data frames
+Inflows_SRP<- merge(Inflows_SRP, SMC_SRP_flow, #merge two data frames
+                all=TRUE) #keep all records for both data frames                
+Inflows_SRP<- Inflows_SRP %>%
+  mutate(Site_ID=NULL, #remove excess column
+         Source_ID=NULL, #remove excess column
+         daynum=as.integer(format(sampledate, format="%j")), #add column with 
+         #daynum for filtering
+         Yr=as.integer(format(sampledate, format="%Y")))
+```
+
+SRP data files merged into one file, "Inflows_SRP."
+
+```{r}
+layout(matrix(c(1,2,3),3,1)) # optional 3 graphs/page
+plot(PB_SRP_flow$sampledate, PB_SRP_flow$SRP_kgday, 
+     xlab = "Sample Date", ylab = "SRP Loading (kg/day)", 
+     main = "Pheasant Branch", cex.lab=1.5, cex.main=2, cex.axis=2)
+plot(YR_SRP_flow$sampledate, YR_SRP_flow$SRP_kgday, 
+     xlab = "Sample Date", ylab = "SRP Loading (kg/day)", 
+     main = "Yahara River", cex.lab=1.5, cex.main=2, cex.axis=2)
+plot(SMC_SRP_flow$sampledate, SMC_SRP_flow$SRP_kgday, 
+     xlab = "Sample Date", ylab = "SRP Loading (kg/day)", 
+     main = "Six-Mile Creek", cex.lab=1.5, cex.main=2, cex.axis=2)
+par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
+
+```
+
+SRP data plotted. SRP available for 1995 to 2010 in PB, 2004 to 2010 in YR, and
+2013 to 2022 in SMC. Data does not overlap for all three inflows.
+
+```{r}
+ggplot(data=Inflows_SRP, 
+       aes(x=daynum, 
+           y=SRP_kgday)) +
+  geom_line()+
+  facet_wrap(~Inflow) +
+  theme_classic()+
+  labs(y="Daily Soluble Reactive P loading (kg/day)",
+       x="Day of Year",
+      caption="White highlight indicates CyanoHAB season, 
+      mid-July to mid-Sept.") +
+  ylim(c(0, max(Inflows$TotP_lbday))) +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights 
+#CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights 
+#CyanoHAB season
+```
+
+Graph plotted of SRP for day of year across the three inflows, for all years.
