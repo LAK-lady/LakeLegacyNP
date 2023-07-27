@@ -1,25 +1,22 @@
 ---
-title: "Mendota_P_ext_all.Rmd"
+title: "Mendota_TotP_ext_all.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-06-20'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
-
 
 The purpose of this program is to calculate total external P load from both 
 atmospheric deposition and stream inflows.
-
 
 # Step 1. Load dependent packages and data needed:
 
 a) Loading dependent packages...
 ```{r}
 library(ggplot2) #needed for plots
-library(ggbreak) #needed for plot scale breaks
-library(dplyr) #needed for reshaping/reformaing data
-library(lubridate) #needed for date functions
-library(zoo) #needed to interpolate data
-library(xts) #needed to convert data frame to time series
+library(dplyr) #needed for reformaing data
+library(reshape2) #needed for reshaping data frames from wide to long
 ```
 
 Packages loaded.
@@ -27,7 +24,7 @@ Packages loaded.
 b) Loading dependent data....
 
 ```{r}
-streams<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") #has the internal loading data
+streams<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") 
 atm<- read.csv(file="Cleaned_data/Mendota_P_atm.csv")
 ```
 
@@ -38,13 +35,12 @@ Data loaded.
 a) transforming data...
 
 ```{r}
-atm2<- atm %>%
-  mutate(X=NULL,
-         sampledate=as.Date(SampleDate, origin="1899-12-30"),
-         SampleDate=NULL)
 streams2<- streams %>%
-  mutate(X=NULL,
-         sampledate=as.Date(sampledate, origin="1899-12-30"))
+  mutate(X=NULL, #remove index column
+         sampledate=as.Date(sampledate, origin="1899-12-30"))#reformat date
+atm2<- atm %>%
+  mutate(X=NULL, #remove index column
+         sampledate=as.Date(sampledate, origin="1899-12-30")) #reformat date
 ```
 
 Data transformed.
@@ -52,51 +48,89 @@ Data transformed.
 b) merging data...
 
 ```{r}
-extP_load<- merge(atm2, streams2, by="sampledate")
+extP_load<- merge(atm2, streams2, by="sampledate") #adds two data files together
 extP_load <- extP_load %>%
-  mutate(totextP_kgday=(totP_atm_kgday + TotP_kgday_sum))
+  mutate(total=(TotP_kgday.x + TotP_kgday.y), #combine atm P and stream P
+         atm=TotP_kgday.x, #rename column
+         TotP_kgday.x=NULL, #remove duplicate column
+         streams=TotP_kgday.y, #rename column
+         TotP_kgday.y=NULL) #remove duplicate column
+```
+
+External P loading merged.
+
+c) reshaping the data frame...
+
+```{r}
+extP_load<- melt(extP_load, #the table you want to reshape wide to long
+               id.vars=c("sampledate"), #the column to use as unique id
+               measure.vars=c("atm","streams","total"), 
+               #the columns where values will be taken
+               variable.name="Source", #label the source of P loading
+               value.name="TotP_kgday" #label the value with units
+               )
+extP_load<- extP_load %>%
+  mutate(daynum=as.integer(format(sampledate, format="%j")), #add column with 
+         #daynum for filtering
+         Yr=as.integer(format(sampledate, format="%Y")) #add column with Yr 
+         )
 ```
 
 # Step 3. Summarize and view data:
 
-a) calculating average total P load for CyanoHAB season...
+a) plot total P load for CyanoHAB season by source for each year...
+```{r}
+extP_load_sumtot<- extP_load %>%
+  filter(Source!="total") %>%
+  group_by(Yr, Source) %>% #for every year
+  summarize(sum_TP_kgyr=sum(TotP_kgday)) #calculate annual total P load
+extP_load_sumtot
+
+ggplot(extP_load_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr, 
+                             fill=Source)) + #separate sources by fill color
+  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
+  scale_fill_manual(values=c("grey", "black")) + #atm = grey, streams=black
+  theme_classic(base_size=12) +
+  labs(x="Year", y="Total P loading (kg/yr)") 
+```
+
+Total P load by source for each year plotted.
+
+b) calculate average daily total P load for CyanoHAB season...
 
 ```{r}
-extP_load_avg<- extP_load %>%
-  mutate(Yr=as.integer(format(sampledate, format="%Y")),
-         daynum=as.integer(format(sampledate, format="%j"))) %>%
-  filter(daynum>=195 & daynum <=255) %>%
-  summarize(atm_avg=mean(totP_atm_kgday, na.rm=TRUE),
-            atm_Se=(sd(totP_atm_kgday, na.rm=TRUE)/sqrt(length(totP_atm_kgday))),
-            str_avg=mean(TotP_kgday_sum, na.rm=TRUE),
-            str_se=(sd(TotP_kgday_sum, na.rm=TRUE)/sqrt(length(TotP_kgday_sum)))
+extP_load_dayavg<- extP_load %>%
+  filter(Source=="total") %>% #for the total external P load
+  summarize(mean=mean(TotP_kgday, na.rm=TRUE), #calculate mean
+            se=(sd(TotP_kgday, na.rm=TRUE)/sqrt(length(TotP_kgday))),
+            min=min(TotP_kgday, na.rm=TRUE),
+            max=max(TotP_kgday, na.rm=TRUE)
             )
-extP_load_avg
+extP_load_dayavg
 ```
 
-b) calculating total P load for year for atmospheric deposition and streams...
+b) calculating average annual total P load for CyanoHAB season...
 
 ```{r}
-extP_load_sum<- extP_load %>%
-  mutate(Yr=as.integer(format(sampledate, format="%Y")),
-         daynum=as.integer(format(sampledate, format="%j"))) %>%
+extP_load_yravg<- extP_load %>%
+  filter(Source=="total") %>% #for the total external P load
   group_by(Yr) %>%
-  summarize(atm=sum(totP_atm_kgday),
-            str=sum(TotP_kgday_sum)
-            ) %>%
-  mutate(Perc_atm=(atm/(atm+str)*100),
-         Perc_str=(str/(atm+str)*100)
-         )
-extP_load_sum
+  summarize(sum=sum(TotP_kgday))
+extP_load_yravg
 ```
 
-The average annual total atm P load was `r mean(extP_load_sum$atm)` +- 
-`r (sd(extP_load_sum$atm)/sqrt(length(extP_load_sum$atm)))` kg. Total atm deposit
-represents on average `r mean(extP_load_sum$Perc_atm)` percent of total external 
-P loading. 
+The average annual total P load was `r mean(extP_load_yravg$sum)` +- 
+`r (sd(extP_load_yravg$sum)/sqrt(length(extP_load_yravg$sum)))` kg/yr. 
 
 # Step 4. Save data as new data file:
 
 ```{r}
-write.csv(extP_load, file="Cleaned_data/Mendota_P_allext.csv")
+totextP_load<- extP_load %>%
+  filter(Source=="total") %>% #filter for total external P load
+  mutate(Source=NULL, #remove extra column
+         extTotP_kgday=TotP_kgday, #rename value column
+         TotP_kgday=NULL) #remove duplicate column
+write.csv(totextP_load, file="Cleaned_data/Mendota_P_allext.csv")
 ```
+
+New data file created with total external P loading.
