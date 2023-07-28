@@ -3,6 +3,8 @@ title: "Mendota_P_water"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-04-10'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 The purpose of this program is to isolate phosphorus measurements in the surface 
@@ -15,8 +17,6 @@ a) Loading the dependent packages...
 ```{r}
 library(dplyr) #needed for transforming data
 library(ggplot2) #needed for plotting
-library(lubridate) #needed for reformatting data and using "year" function
-library(zoo) #needed for time series
 ```
 
 Packages loaded.
@@ -29,10 +29,9 @@ data<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) #has nutri
 
 # Step 2. Transform and filter data:
 
-a) Identify depth at which measurements were taken...
+a) filter and transform data from Lake Mendota...
 
 ```{r}
-sort(unique(data$depth)) #identify the depths of measurements
 ME_P<- data %>%
   filter(lakeid=="ME", #filter for Lake Mendota
          rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
@@ -45,10 +44,12 @@ ME_P<- data %>%
 stem(ME_P$Depth_m) #plots the number of observations by depth (y-axis)
 ```
 
+Measurements were taken at the following depths: `r sort(unique(data$depth)) #identify the depths of measurements`.
+
 b) Filter and transform epilimnion P data...
 ```{r}
 Epi_P<- ME_P %>%
-  filter(Depth_m <= 1.5) %>% #for observations taken at or above 1.5 m
+  filter(Depth_m < 4) %>% #for observations taken at or above 1.5 m
   group_by(sampledate) %>% #group all observations in same sample date
   summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in epi 
 
@@ -65,7 +66,8 @@ epiP_interp <- data.frame( #creates a new data frame that has
                              TotP_mgL=interpolated$y) #predicted hypo: epi P ratio
 plot(epiP_interp,
      xlab="Date",
-     ylab="Epi Total P (mg/L)") #plots the new time series
+     ylab="Total P concentration (mg/L)",
+     main="Epilimnion") #plots the new time series
 ```
 
 Epi P data transformed and filtered.
@@ -91,7 +93,8 @@ hypoP_interp <- data.frame( #creates a new data frame that has
                              TotP_mgL=interpolated$y) #predicted hypo: epi P ratio
 plot(hypoP_interp,
      xlab="Date",
-     ylab="Hypo Total P (mg/L)") #plots the new time series
+     ylab="Total P concentration (mg/L)",
+     main="Hypolimnion") #plots the new time series
 
 ```
 
@@ -107,13 +110,11 @@ Me_P_water<- Me_P_water %>% #need to clean up
          Hypo_TotP_mgL=TotP_mgL.y,#rename column
          TotP_mgL.y=NULL,#remove duplicate column
          HE_ratio_TotP_mgL=Hypo_TotP_mgL/Epi_TotP_mgL, #calculate Hypo: Epi total P
-         Yr=as.integer(year(sampledate)), #adds field with year
+         Yr=as.integer(format(sampledate, "%Y")), #adds field with year
          MoYr=format(sampledate, "%m/01/%Y"), #adds field with month and year
-         daynum=as.integer(yday(sampledate)), #adds field with Julian date
-         Mo=as.integer(month(sampledate))) #adds field with month)
+         daynum=as.integer(format(sampledate, "%j")), #adds field with Julian date
+         Mo=as.integer(format(sampledate, "%m"))) #adds field with month)
 ```
-
-
 
 # Step 4. Summarize and view the data:
 
@@ -123,17 +124,18 @@ a) Plotting epi P data...
 ggplot(data=Me_P_water, 
        aes(x=daynum,y=Epi_TotP_mgL)) + 
   geom_point(aes(col=Yr))+
-  labs(title="Epilimnion (>= 1.5 m), Lake Mendota, WI", #plot title
+  labs(title="Epilimnion (depth < 4 m), Lake Mendota, WI", #plot title
        x="Day of Year", #x axis label
-       y="Total Phosphorus (mg/L)", #y axis label
-       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+       y="Total Phosphorus Concentration (mg/L)", #y axis label
+       caption="White highlight indicates CyanoHAB season, mid-Jul to mid-Sep.
+       Red dashed line indicates moving-average regression.") + 
   ylim(0, max(Me_P_water$Epi_TotP_mgL)) +
   scale_x_continuous(breaks = seq(0, max(Me_P_water$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   scale_color_continuous(name="Year")+
-  geom_smooth() + #adds loess curve (moving average regression model)
+  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
@@ -148,17 +150,18 @@ b) Plotting hypo P data...
 ggplot(data=Me_P_water, 
        aes(x=daynum,y=Hypo_TotP_mgL)) + 
   geom_point(aes(col=Yr))+
-  labs(title="Hypolimnion (>= 20 m), Lake Mendota, WI", #plot title
+  labs(title="Hypolimnion (depth >= 20 m), Lake Mendota, WI", #plot title
        x="Day of Year", #x axis label
-       y="TOtal Phosphorus (mg/L)", #y axis label
-       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+       y="TOtal Phosphorus Concentration (mg/L)", #y axis label
+       caption="White highlight indicates CyanoHAB season, mid-Jul to mid-Sep.
+       Red dashed line indicates moving-average regression.") + 
   ylim(0, max(Me_P_water$Hypo_TotP_mgL)) +
   scale_x_continuous(breaks = seq(0, max(Me_P_water$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   scale_color_continuous(name="Year")+
-  geom_smooth() + #adds loess curve (moving average regression model)
+  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
@@ -174,14 +177,15 @@ ggplot(data=Me_P_water,
   labs(title="Hypo: Epi total P ratio, Lake Mendota, WI", #plot title
        x="Day of Year", #x axis label
        y="Hypo: Epi Total Phosphorus", #y axis label
-       caption="Grey shading indicates CyanoHAB season, mid-Jul to mid-Sep.") + 
+       caption="White highlight indicates CyanoHAB season, mid-Jul to mid-Sep.
+       Red dashed line indicates moving-average regression.") + 
   ylim(0, max(Me_P_water$HE_ratio_TotP_mgL)) +
   scale_x_continuous(breaks = seq(0, max(Me_P_water$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   scale_color_continuous(name="Year")+
-  geom_smooth() + #adds loess curve (moving average regression model)
+  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
