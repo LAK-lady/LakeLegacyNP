@@ -3,6 +3,8 @@ title: "Mendota_Algae"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-02-15'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 The following text and code documents how algal data was processed and analyzed.
@@ -63,9 +65,10 @@ plot(Me_Chl$sampledate, Me_Chl$Chla_ugL,
      ylab="Total Chl-a (ugL)") #plots the new time series
 ```
 
-Chl-a data plotted. 
+Chl-a data plotted. Chl-a available from 2008 to 2012.
 
-b) filter and transform data for cyanobacteria relative biovolume (CRB) by sample date...
+b) filter and transform data for cyanobacteria relative biovolume (CRB) and
+cyanobacteria density (CD) by sample date...
 
 ```{r}
 Me_cyanoRB<- phyto %>%
@@ -77,12 +80,12 @@ Me_cyanoRB<- phyto %>%
   group_by(sampledate) %>% #group all observations by sample date
   summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
             cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  filter(relbiovol<=100) #remove any invalid records (>100%  not valid entry)          
+  filter(relbiovol<=100) #remove any invalid records (>100%  not valid entry)     
 ```
 
-CRB data filtered and transformed.
+CRB and CD data filtered and transformed.
 
-Plotting CRB data available...
+Plotting CRB and CD data available...
 
 ```{r}
 par(mfrow=c(1,2)) #returns graphing viewer to 2 plots per page
@@ -95,7 +98,7 @@ plot(Me_cyanoRB$sampledate, Me_cyanoRB$cellsmL, #point plot x, y
 par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
 ```
 
-CRB data plotted. 
+CRB and CD data plotted. 
 
 # Step 3. Interpolate missing data values for equal time intervals between observations:
 
@@ -205,24 +208,29 @@ Me_Algae<- Me_Algae %>%
 
 b) Plot Chl-a by day of year...
 ```{r}
-ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data gap from 2002 to 2008 and in 2017
+ggplot(data=subset(Me_Algae, Yr>=2012 & !Yr==2017), 
        aes(x=daynum,y=Chla_ugL)) + 
-  geom_point(aes(col=Yr))+ #colors points by year 
-  labs(title="Lake Mendota, WI", #add title
+  geom_point(aes(shape=as.factor(Yr)))+ #colors points by year 
+  labs(title="Epilimnion (depth <= 8 m) Lake Mendota, WI", #add title
        x="Day of Year", #add x axis label
+       shape="Year", #add legend label as year
        y="Extracted Chl-a (ug/L)", #add y axis label
-       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
-       Black solid line represents smoothed loess curve") + #add caption for notation
+       caption="White highlight along x-axis indicates CyanoHAB season, mid-Jul to mid-Sep. 
+       Color coding along y-axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe).
+       Red dashed line indicates moving-average regression.") + #add caption for notation
   ylim(0, max(Me_Algae$Chla_ugL)) + #limit y-axis
-  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
-                                  by=30)) + #every 30 days (1 month)
+  #scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
+  #                                by=30)) + #every 30 days (1 month)
   theme_classic()+
-  scale_color_continuous(name="Year")+ #adds color scale for year
-  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
+  #scale_color_continuous(name="Year")+ #adds color scale for year
+  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box days outside of CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box days outside of CyanoHAB season
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf) + #shadow box days outside of CyanoHAB season
+  annotate('rect', xmin=0, xmax=Inf, ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=0, xmax=Inf, ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=0, xmax=Inf, ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
 c) Plot Chl-a each year, with coding for CyanoHAB severity:
@@ -234,10 +242,11 @@ ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data g
   geom_line() + #add line between data points
   scale_y_continuous(trans="log10") + # log-transforms y axis
   facet_wrap(~Yr) + #separates out plots by year
-  labs(title="Lake Mendota, WI", #adds title
+  labs(title="Epilimnion (depth <= 8 m) Lake Mendota, WI", #adds title
        x="Day of Year",  #adds x-axis label
        y="Total Algal Biomass as Chl-a (ug/L)", #adds y-axis label
-       caption="White shading indicates CyanoHAB season, mid-July to mid-Sept.") + #adds caption for notation
+       caption="White highlight along x-axis indicates CyanoHAB season, mid-July to mid-Sept.
+       Color coding along y=axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe)") + #adds caption for notation
   theme_classic()+
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
@@ -248,50 +257,30 @@ ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data g
   annotate('rect', xmin=0, xmax=Inf, ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
-d) Plot CRB by day of year...
+d) Plot CD by day of year...
 
 ```{r}
-ggplot(data=Me_Algae, aes(x=daynum, y=Cyanorelbiovol)) + 
-  geom_point(aes(col=Yr))+ #colors points by year
-  labs(title = "Lake Mendota, WI", #adds title
+ggplot(data=subset(Me_Algae, Yr >= 2012), aes(x=daynum, y=CyanoDens_cellsmL)) + 
+  geom_point(aes(shape=as.factor(Yr)))+ #colors points by year
+  labs(title = "Epilimnion (depth <= 8 m) Lake Mendota, WI", #adds title
        x="Day of Year", #adds x-axis label
-       y="Cyanobacteria relative biovolume (% of total algal biovolume)", #adds y-xis label
-       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
-       Black solid line represents smoothed loess curve") + #add caption for notation
-  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
-                                  by=30)) + #every 30 days (1 month)
-  theme_classic()+
-  scale_color_continuous(name="Year")+ #adds color scale for year
-  theme_classic()+
-  geom_hline(yintercept = 50, lty="dashed", col="red") + #adds horizontal line to indicate 50% of total biovolume
-  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
-```
-
-e) Plot CD by day of year...
-
-```{r}
-ggplot(data=Me_Algae, aes(x=daynum, y=CyanoDens_cellsmL)) + 
-  geom_point(aes(col=Yr))+ #colors points by year
-  labs(title = "Lake Mendota, WI", #adds title
-       x="Day of Year", #adds x-axis label
+       shape="Year",
        y="Cyanobacteria Density (cells/mL)", #adds y-xis label
-       caption="White shading represents CyanoHAB season, mid-Jul to mid-Sep. n/
-       Black solid line represents smoothed loess curve") + #add caption for notation
+       caption="White highlight along x-axis represents CyanoHAB season, mid-Jul to mid-Sep.
+       Red dashed line indicates moving-average regression.") + #add caption for notation
+  scale_shape_manual(values=c(0,1,2,3,4,5,6,7))+ #need to specify shapes if n>6
   scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month)
   theme_classic()+
-  scale_color_continuous(name="Year")+ #adds color scale for year
-  theme_classic()+
-  geom_hline(yintercept = 50, lty="dashed", col="red") + #adds horizontal line to indicate 50% of total biovolume
-  geom_smooth(colour="black") + #adds loess curve (moving average regression model)
+  #scale_color_continuous(name="Year")+ #adds color scale for year
+  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) #shadow box highlights CyanoHAB season
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', xmin=0, xmax=Inf, ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=0, xmax=Inf, ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=0, xmax=Inf, ymin=100000, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
 # Step 6. Save as new data file:
