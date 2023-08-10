@@ -68,14 +68,38 @@ a) creating a new data frame with lagged variables...
 
 ```{r}
 water_int_k<- transform(Me_all, 
-                        HE_ratio_k=lag(HE_ratio_TotP_mgL, n=7), 
+                        HE_ratio_k1=lag(HE_ratio_TotP_mgL, n=1), 
+                        #adds column holding value from 1 day before
+                        HE_ratio_k7=lag(HE_ratio_TotP_mgL, n=7), 
                         #adds column holding value from 7 days before
-                        totextP_kgday_k=lag(extTotP_kgday, n=14), 
-                        #adds column with X_2, t-14 value
-                        Chla_ugL_k=lag(Chla_ugL, n=7), 
-                        #adds column with Y_1, t-7 value
-                        CyanoDens_cellsmL_k=lag(CyanoDens_cellsmL, n=7) 
-                        #adds column with Y_2, t-7 value
+                        HE_ratio_k14=lag(HE_ratio_TotP_mgL, n=14), 
+                        #adds column holding value from 30 days before
+                        HE_ratio_k30=lag(HE_ratio_TotP_mgL, n=30), 
+                        #adds column holding value from 30 days before
+                        totextP_kgday_k1=lag(extTotP_kgday, n=1), 
+                        #adds column holding value from 1 day before
+                        totextP_kgday_k7=lag(extTotP_kgday, n=7), 
+                        #adds column holding value from 7 days before
+                        totextP_kgday_k14=lag(extTotP_kgday, n=14), 
+                        #adds column holding value from 14 days before
+                        totextP_kgday_k30=lag(extTotP_kgday, n=30), 
+                        #adds column holding value from 30 days before
+                        Chla_ugL_k1=lag(Chla_ugL, n=1), 
+                        #adds column holding value from 1 day before
+                        Chla_ugL_k7=lag(Chla_ugL, n=7), 
+                        #adds column holding value from 7 days before
+                        Chla_ugL_k14=lag(Chla_ugL, n=14), 
+                        #adds column holding value from 14 days before
+                        Chla_ugL_k30=lag(Chla_ugL, n=30), 
+                        #adds column holding value from 30 days before
+                        CyanoDens_cellsmL_k1=lag(CyanoDens_cellsmL, n=1), 
+                        #adds column holding value from 1 day before
+                        CyanoDens_cellsmL_k7=lag(CyanoDens_cellsmL, n=7), 
+                        #adds column holding value from 7 days before
+                        CyanoDens_cellsmL_k14=lag(CyanoDens_cellsmL, n=14), 
+                        #adds column holding value from 14 days before
+                        CyanoDens_cellsmL_k30=lag(CyanoDens_cellsmL, n=30) 
+                        #adds column holding value from 30 days before
 )
 ```
 
