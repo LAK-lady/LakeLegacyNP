@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-The purpose of this program is to identify the thermocline depth from daily temperature profiles and calculate the daily volumes of each lake layer   (epilimnion, metalimnion, hypolimnion).
+The purpose of this program is to identify the thermocline depth from daily temperature profiles and calculate the daily volume change of the epi.
 
 # Step 1. Load dependent packages and data:
 
@@ -147,7 +147,6 @@ therm_chg<- td_interp %>%
 ```
 
 Daily change in epilimnion volume calculated.
-
 
 # Step 7. Save data as new data file. 
 
