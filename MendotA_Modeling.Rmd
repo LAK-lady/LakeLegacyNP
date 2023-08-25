@@ -140,11 +140,11 @@ hist(log10(water_int_k$CyanoDens_cellsmL), breaks=50,
      main="log-transformed",
      xlab="Cyano Density (cells/mL)") #prints histograph of log10(CD)
 #log-transform data is more normal
-hist(water_int_k$totextP_kgday, breaks=50,
+hist(water_int_k$extTotP_kgday, breaks=50,
      main="non-transformed",
      xlab="External P loading (kg/day)") #prints hist of ext load term
 #data right skewed
-hist(log10(water_int_k$totextP_kgday), breaks=50,
+hist(log10(water_int_k$extTotP_kgday), breaks=50,
      main="log-transformed",
      xlab="External P loading (kg/day)") #prints hist of ext load term
 #data more normal, but still right skewed
@@ -165,13 +165,20 @@ need to be transformed to log 10 for modeling.
 # Step 6. Check whether variables are correlated:
 
 ```{r}
-cor<- Me_all %>% 
+cor<- water_int_k %>% 
   select(CyanoDens_cellsmL, Chla_ugL, #select the columns with data needed
-         extTotP_kgday, HE_ratio_TotP_mgL) %>%
+         totextP_kgday_k14, HE_ratio_k7, CyanoDens_cellsmL_k7, Chla_ugL_k7) %>%
   mutate(CD=log10(CyanoDens_cellsmL), Chla=log10(Chla_ugL+0.01), #log-transform
-         Pext=log10(extTotP_kgday), Pint=log10(HE_ratio_TotP_mgL)) %>% #data
-  mutate(CyanoDens_cellsmL=NULL, Chla_ugL=NULL, #remove columns with non-trans
-         extTotP_kgday=NULL, HE_ratio_TotP_mgL=NULL) #data
+         Pext=log10(totextP_kgday_k14), 
+         Pint=log10(HE_ratio_k7), 
+         CD_k7=log10(CyanoDens_cellsmL_k7),
+         Chla_k7=log10(Chla_ugL_k7+0.01)) %>% #log-transform values
+  mutate(CyanoDens_cellsmL=NULL, 
+         Chla_ugL=NULL, 
+         totextP_kgday_k14=NULL,
+         HE_ratio_k7=NULL, 
+         CyanoDens_cellsmL_k7=NULL, 
+         Chla_ugL_k7=NULL) #remove columns with non-trransformed data
 M=cor(cor, method="kendall") #perform correlation using Kendall tau method
 corrplot(M, #plot cor matrix
          diag=FALSE, #remove diagonal that shows corr of vars with themselves
@@ -284,8 +291,8 @@ Results imputed into excel table for graphing.
 ```{r}
 mycols <- colorRampPalette( c("green", "red") )
 plot3d( 
-  x=log10(water_int_k$HE_ratio_k), 
-  y=water_int_k$totextP_kgday_k, 
+  x=log10(water_int_k$HE_ratio_k7), 
+  y=water_int_k$totextP_kgday_k14, 
   z=(water_int_k$Chla_ugL), 
   colvar=(water_int_k$Chla_ugL),
   type = 's', 
