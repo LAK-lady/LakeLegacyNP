@@ -1,7 +1,7 @@
 ---
 title: "Mendota_EpiVolume"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2023-02-14'
+date: '2023-08-25'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -106,9 +106,13 @@ Thermocline depth calculated.
 c) plotting the thermocline depth by day during CyanoHAB season...
 
 ```{r}
-plot(x=t.d$datetime, y=t.d$thermo.depth, type="b",
-     xlab="Date", 
-     ylab="Thermocline depth (m)")
+ggplot(data=t.d, aes(x=datetime, 
+                     y=thermo.depth))+ #plot thermocline depth across date
+  geom_point(shape=1) + #points as open circles
+  geom_line() + #add lines between points
+  scale_y_reverse() + #reverse the y scale for limno plot
+  theme_classic() +
+  labs(x="Date", y="Thermocline depth (m)")#add axis labels
 ```
 
 Thermocline depth calculated and plotted for each date. 
@@ -144,7 +148,7 @@ Vol_epi<- t.d2 %>%
          sampledate=datetime, datetime=NULL, #rename column, remove duplicate
          daynum=as.numeric(format(sampledate, "%j")) #add in daynum
          )  %>%
-  select(sampledate, Yr, daynum, Vol_epi_m3)
+  select(sampledate, Yr, daynum, Vol_epi_m3, Thermo_depth_m)
 ```
 
 Change in epilimnion volume calculated between observations.
@@ -241,7 +245,7 @@ Missing data interpolated.
 # Step 8. Save data as new data file. 
 
 ```{r}
-Vol_epi_int <- Vol_epi_int %>% select(date, Vol_epi_m3)
+Vol_epi_int <- Vol_epi_int %>% select(date, Vol_epi_m3, Thermo_depth_m)
 write.csv(Vol_epi_int, file="Cleaned_data/Mendota_EpiVolume.csv")
 ```
 
