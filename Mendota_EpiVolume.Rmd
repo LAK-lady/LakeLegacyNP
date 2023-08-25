@@ -227,7 +227,7 @@ Vol_epi_int<- Vol_epi3 %>%
 
 Missing sample dates interpolated.
 
-e) interpolating change in epi volume between observations...
+d) interpolating change in epi volume between observations...
 
 ```{r}
 Vol_epi_int$Vol_epi_m3<- na.approx(Vol_epi_int$Vol_epi_m3) #interpolates NAs
@@ -238,7 +238,7 @@ plot(x=Vol_epi_int$date, y=Vol_epi_int$Vol_epi_m3, type="b", #plots new data
 
 Missing data interpolated.
 
-# Step 7. Save data as new data file. 
+# Step 8. Save data as new data file. 
 
 ```{r}
 Vol_epi_int <- Vol_epi_int %>% select(date, Vol_epi_m3)
