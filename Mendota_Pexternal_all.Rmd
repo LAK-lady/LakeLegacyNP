@@ -76,12 +76,14 @@ extP_load_long$Source[extP_load_long$Source=="atm_TotP_kgday"] <- "atmosphere"
 extP_load_long$Source[extP_load_long$Source=="allInflows_TotP_kgday"] <- "streams"
 
 extP_load_long<- extP_load_long %>%
-  mutate(Yr=format(sampledate, "%Y") #add year back in data frame
-         ) %>%
+  mutate(Yr=format(sampledate, "%Y"), #add year back in data frame
+         daynum=format(sampledate, "%j")) %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season 
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
   group_by(Yr, Source) %>% #for each year and each source
   summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
 
-ggplot(subset(extP_load_long, Yr<=2018), aes(x=Yr, y=TotP_kgday, 
+ggplot(extP_load_long, aes(x=Yr, y=TotP_kgday, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "black")) + #atm = grey, streams=black
@@ -118,6 +120,64 @@ extP_load_yr
 
 The average annual total P load was `r mean(extP_load_yr$sum)` +- 
 `r (sd(extP_load_yr$sum)/sqrt(length(extP_load_yr$sum)))` kg/yr. 
+
+d) calculating average daily P loading from streams
+
+```{r}
+stream_extP_load_day<- extP_load %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season 
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
+  summarize(mean=mean(allInflows_TotP_kgday, na.rm=TRUE), #calculate mean
+            se=(sd(allInflows_TotP_kgday, na.rm=TRUE)/sqrt(length(allInflows_TotP_kgday))),
+            min=min(allInflows_TotP_kgday, na.rm=TRUE),
+            max=max(allInflows_TotP_kgday, na.rm=TRUE)
+            )
+stream_extP_load_day
+```
+
+Average daily P loading from streams calculated.
+
+e) calculating total P loading from streams per year...
+
+```{r}
+stream_load_yr<- extP_load %>%
+  filter(Yr>2012 & Yr<=2018) %>% #filter for the study period
+  group_by(Yr) %>%
+  summarize(sum=sum(allInflows_TotP_kgday))
+stream_load_yr
+```
+
+The average annual total P load from streams was `r mean(stream_load_yr$sum)` +- 
+`r (sd(stream_load_yr$sum)/sqrt(length(stream_load_yr$sum)))` kg/yr. 
+
+f) calculating average daily P loading from atmospheric deposition...
+
+```{r}
+atm_load_day<- extP_load %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season 
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
+  summarize(mean=mean(atm_TotP_kgday, na.rm=TRUE), #calculate mean
+            se=(sd(atm_TotP_kgday, na.rm=TRUE)/sqrt(length(atm_TotP_kgday))),
+            min=min(atm_TotP_kgday, na.rm=TRUE),
+            max=max(atm_TotP_kgday, na.rm=TRUE)
+            )
+atm_load_day
+```
+
+Average daily P loading from atmospheric deposition calculated.
+
+g) calculating total P loading from atm per year...
+
+```{r}
+atm_load_yr<- extP_load %>%
+  filter(Yr>2012 & Yr<=2018) %>% #filter for the study period
+  group_by(Yr) %>%
+  summarize(sum=sum(atm_TotP_kgday))
+atm_load_yr
+```
+
+The average annual total P load from streams was `r mean(atm_load_yr$sum)` +- 
+`r (sd(atm_load_yr$sum)/sqrt(length(atm_load_yr$sum)))` kg/yr. 
 
 # Step 4. Save data as new data file:
 
