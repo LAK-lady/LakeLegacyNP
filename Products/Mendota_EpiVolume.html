@@ -495,7 +495,7 @@ Vol_epi&lt;- t.d2 %&gt;%
          sampledate=datetime, datetime=NULL, #rename column, remove duplicate
          daynum=as.numeric(format(sampledate, &quot;%j&quot;)) #add in daynum
          )  %&gt;%
-  select(sampledate, Yr, daynum, Vol_epi_m3)</code></pre>
+  select(sampledate, Yr, daynum, Vol_epi_m3, Thermo_depth_m)</code></pre>
 <p>Change in epilimnion volume calculated between observations.</p>
 </div>
 <div id="step-6.-bin-observations-into-same-day-number-each-year" class="section level1">
@@ -578,7 +578,7 @@ plot(x=Vol_epi_int$date, y=Vol_epi_int$Vol_epi_m3, type=&quot;b&quot;, #plots ne
 </div>
 <div id="step-8.-save-data-as-new-data-file." class="section level1">
 <h1>Step 8. Save data as new data file.</h1>
-<pre class="r"><code>Vol_epi_int &lt;- Vol_epi_int %&gt;% select(date, Vol_epi_m3)
+<pre class="r"><code>Vol_epi_int &lt;- Vol_epi_int %&gt;% select(date, Vol_epi_m3, Thermo_depth_m)
 write.csv(Vol_epi_int, file=&quot;Cleaned_data/Mendota_EpiVolume.csv&quot;)</code></pre>
 <p>Data saved as new file in Cleaned_data folder as
 Mendota_EpiVolume.csv”</p>
