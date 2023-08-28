@@ -31,9 +31,9 @@ atm<- read.csv(file="Cleaned_data/Mendota_P_atm.csv")
 
 Data loaded.
 
-# Step 2. Transform and merge data:
+# Step 2. Define and merge data:
 
-a) transforming data...
+a) defining data...
 
 ```{r}
 streams2<- streams %>%
@@ -44,7 +44,7 @@ atm2<- atm %>%
          sampledate=as.Date(sampledate, origin="1899-12-30")) #reformat date
 ```
 
-Data transformed.
+Data defined
 
 b) merging data...
 
@@ -94,38 +94,38 @@ Total P load by source for each year plotted.
 b) calculate average daily total P load for CyanoHAB season...
 
 ```{r}
-extP_load_dayavg<- extP_load %>%
-  filter(daynum>=195 & daynum<=255) %>% #filter for the CyanoHAB season 
+extP_load_day<- extP_load %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season 
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
   summarize(mean=mean(total, na.rm=TRUE), #calculate mean
             se=(sd(total, na.rm=TRUE)/sqrt(length(total))),
             min=min(total, na.rm=TRUE),
             max=max(total, na.rm=TRUE)
             )
-extP_load_dayavg
+extP_load_day
 ```
 
-b) calculating average annual total P load for CyanoHAB season...
+c) calculating average annual total P load for CyanoHAB season...
 
 ```{r}
-extP_load_yravg<- extP_load %>%
-  filter(Source=="total") %>% #for the total external P load
+extP_load_yr<- extP_load %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
   group_by(Yr) %>%
-  summarize(sum=sum(TotP_kgday))
-extP_load_yravg
+  summarize(sum=sum(total))
+extP_load_yr
 ```
 
-The average annual total P load was `r mean(extP_load_yravg$sum)` +- 
-`r (sd(extP_load_yravg$sum)/sqrt(length(extP_load_yravg$sum)))` kg/yr. 
+The average annual total P load was `r mean(extP_load_yr$sum)` +- 
+`r (sd(extP_load_yr$sum)/sqrt(length(extP_load_yr$sum)))` kg/yr. 
 
 # Step 4. Save data as new data file:
 
 ```{r}
-totextP_load<- extP_load %>%
-  filter(Source=="total") %>% #filter for total external P load
-  mutate(Source=NULL, #remove extra column
-         extTotP_kgday=TotP_kgday, #rename value column
-         TotP_kgday=NULL) #remove duplicate column
-write.csv(totextP_load, file="Cleaned_data/Mendota_P_allext.csv")
+extP_load<- extP_load %>%
+  filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season
+  filter(Yr>=2012 & Yr<=2018) #filter for the study period
+write.csv(extP_load, file="Cleaned_data/Mendota_P_allext.csv")
 ```
 
 New data file created with total external P loading.
