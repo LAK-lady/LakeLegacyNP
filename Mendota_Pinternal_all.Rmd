@@ -49,7 +49,7 @@ waterP2<- waterP %>%
          rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
   filter(!is.na(TotP_mgL)) %>% #remove NA values
   filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
-  filter(daynum >=189 & daynum <=261) %>% #filter for CyanoHAB season +- 6 days
+  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
   select(sampledate, TotP_mgL, Depth_m, daynum, Yr) #select fields needed
 ```
 
@@ -64,7 +64,7 @@ EpiVol2<- EpiVol %>%
          Yr=as.integer(format(sampledate, "%Y")), #add field with year
          Depth_m=as.integer(round(Thermo_depth_m, 0)), Thermo_depth_m=NULL) %>% #round the depth to nearest integer, rename field with units, remove duplicate column
   filter(Yr>=2012 & Yr<=2018) %>% #filter for study period
-  filter(daynum>=189 & daynum <=261) %>% #filter for CyanoHAB season +- 6 days
+  filter(daynum>=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
   select(sampledate, Vol_epi_m3, Depth_m, Yr, daynum) #select fields needed  
 ```
 
@@ -185,7 +185,7 @@ Yr<- seq(from=2012, #define year start of study period
              by=1) #creates a sequence every 1 year
 Yr #prints the expected years of data
 daynum_bins<- seq(from=196, #define date start of CyanoHAB season
-                  to=255, #define date end of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
                   by=14) #creates a sequence every 14 days 
 daynum_bins #prints the expected observation dates of data
 ```
@@ -248,8 +248,8 @@ adjacent to epilimnion), and total internal P loading.
 
 ```{r}
 t<- 14 #length between observations in days
-mgL_mgm3<- 1000/1 #conversion factor from mg/L to mg/M^3
-mg_kg<- 1/1000 #conversion factor from mg to kg
+mgL_mgm3<- 1000/1 #conversion factor from mg/L to mg/m^3
+mg_kg<- 1/1000000 #conversion factor from mg to kg
 A_unstrat<- 13980000 #unstratified lake surface area, where sediments are 
 # directly adjacent to epilimnion in m^2
 Sed_P<- 2.4 # mg P/m2-day (average based on previous study by Stauffer 1987 who 
