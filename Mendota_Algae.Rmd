@@ -17,9 +17,6 @@ a) loading the dependent packages...
 library(ggplot2) #needed for plots
 library(ggbreak) #needed for plot scale breaks
 library(dplyr) #needed for reshaping/reformaing data
-library(lubridate) #needed for reformatting data and using "year" function
-library(DiagrammeR)
-library(plotly) #needed for making 3D plots
 ```
 
 Packages loaded.
@@ -39,60 +36,72 @@ phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #
 Phytoplankton community data loaded. 
 
 
-# Step 2. Filter and transform data:
+# Step 2. Define and filter data:
 
-a) filter and transform data for total algal biomass (as Chl-a) by sample date...
+a) defining and filtering data for total algal biomass (as Chl-a)...
 
 ```{r}
 Me_Chl<- Chl %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
          Chla_ugL= tri_chl_spec, #renames field to common name with units
-         Yr=year4) %>% #renames field to common name
+         Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #renames field to common name
   filter(lakeid=="ME", #filter for Lake Mendota data
          depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
          rep=="1") %>% #remove QA analytic replicates
   filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  select(sampledate, Yr, Chla_ugL) #selects only fields of interest
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
+  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
 ```
 
-Chl-a data filtered and transformed. 
+Chl-a data defined and filtered. 
 
-Plotting Chl-a data available...
-
-```{r}
-plot(Me_Chl$sampledate, Me_Chl$Chla_ugL,
-     xlab="Date",
-     ylab="Total Chl-a (ugL)") #plots the new time series
-```
-
-Chl-a data plotted. Chl-a available from 2008 to 2012.
-
-b) filter and transform data for cyanobacteria relative biovolume (CRB) and
-cyanobacteria density (CD) by sample date...
+b) defining and filtering data for cyanobacteria relative biovolume (CRB) and
+cyanobacteria density (CD)...
 
 ```{r}
 Me_cyanoRB<- phyto %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
-         Yr=year4) %>% #renames field to coomon name
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
   filter(lakeid=="ME", #filter for Lake Mendota data
          depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
          division=="Cyanophyta") %>% #filter for cyanobacteria data
   group_by(sampledate) %>% #group all observations by sample date
   summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
-            cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  filter(relbiovol<=100) #remove any invalid records (>100%  not valid entry)     
+            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
+  filter(daynum >=189 & daynum <=259) #filter for CyanoHAB season +- 7 days
 ```
 
-CRB and CD data filtered and transformed.
+CRB and CD data defined and filtered.
 
-Plotting CRB and CD data available...
+# Step 3. View the data available:
+
+a) Plotting Chl-a data available...
+
+```{r}
+ggplot(data=Me_Chl, aes(x=sampledate, y=Chla_ugL)) + #plots Chl-a across date
+  geom_point() + #adds points at observations
+  geom_line() + #adds lines between 
+  theme_classic(base_size=12) +
+  labs(x="Date", y="Total Chl-a (ug/L)")
+```
+
+Chl-a data plotted. Chl-a available from 2008 to 2012, note NAs in 2017.
+
+b) Plotting CRB and CD data available...
 
 ```{r}
 par(mfrow=c(1,2)) #returns graphing viewer to 2 plots per page
 plot(Me_cyanoRB$sampledate, Me_cyanoRB$relbiovol, #point plot x, y
+     type="b", #point and line plot
      xlab="Date",
      ylab="Cyanobacteria Relative Biovolume (as % total algal biovolume)") 
-plot(Me_cyanoRB$sampledate, Me_cyanoRB$cellsmL, #point plot x, y
+plot(Me_cyanoRB$sampledate, Me_cyanoRB$CD_cellsmL, #point plot x, y
+     type="b", #point and line plot
      xlab="Date",
      ylab="Cyanobacteria Density (cells/mL)") #plots the new time series
 par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
@@ -100,191 +109,153 @@ par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
 
 CRB and CD data plotted. 
 
-# Step 3. Interpolate missing data values for equal time intervals between observations:
+# Step 4. Bin observations into same daynumber each year:
 
-a) interpolating Chl-a data...
-
+a) defining expected observation frequencies...
 ```{r}
-date_range<- seq( #creates a vector of sequence data
-  min(Me_Chl$sampledate), #starting at the first sample date
-  max(Me_Chl$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Me_Chl$sampledate, #across date
-  Me_Chl$Chla_ugL, #the predicted values of Chl-a
-  xout=date_range) #for every 1 day
-Chla_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
-  Chla_ugL=interpolated$y) #renames the new vector as common field with units
+Yr<- seq(from=2012, #define year start of study period
+             to=2018, #define year end of study period
+             by=1) #creates a sequence every 1 year
+Yr #prints the expected years of data
+daynum_bins<- seq(from=196, #define date start of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
+                  by=14) #creates a sequence every 14 days 
+daynum_bins #prints the expected observation dates of data
+Me_phyto<- data.frame(Yr=rep(Yr, each=5), daynum_bin=rep(daynum_bins, times=7)) #create data frame with expected year and day number
 ```
 
-Chl-a data interpolated.
+Defined expected observation frequency.
 
-Plotting new Chl-a time series...
+b) binning Chl observed dates into expected dates...
 
 ```{r}
-plot(Chla_interp$sampledate, Chla_interp$Chla_ugL,
-     xlab="Date",
-     ylab="Total Chl-a (ugL)") #plots the new time series
+Me_Chl <- Me_Chl  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>=(daynum_bins[3]-7)&daynum<(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>=(daynum_bins[4]-7)&daynum<(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+Me_Chl<- Me_Chl %>% 
+  filter(!duplicated(cbind(Yr, daynum_bin), fromLast = TRUE)) #remove first duplicate
 ```
 
-New Chl-a time series plotted. 
+Observed dates assigned to closest expected dates.
 
-b) interpolating CRB data...
+b) binning CD observed dates into expected dates...
 
 ```{r}
-date_range<- seq( #creates a vector of sequence data
-  min(Me_cyanoRB$sampledate), #starting at the first sample date
-  max(Me_cyanoRB$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Me_cyanoRB$sampledate, #across date
-  Me_cyanoRB$relbiovol, #the predicted values of CRB
-  xout=date_range) #for every 1 day
-CRB_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
-  Cyanorelbiovol=interpolated$y) #renames the new vector as common field with units
+Me_cyanoRB <- Me_cyanoRB  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>=(daynum_bins[3]-7)&daynum<(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>=(daynum_bins[4]-7)&daynum<(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+Me_cyanoRB<- Me_cyanoRB %>% 
+  filter(!duplicated(cbind(Yr, daynum_bin), fromLast = TRUE)) #remove first duplicate
 ```
 
-CRB interpolated.
+Observed dates assigned to closest expected dates.
 
-Plotting new CRB time series...
+c) merging the data frames...
+Note, R only merges two data frames at one time.
 
 ```{r}
-plot(CRB_interp$sampledate, CRB_interp$Cyanorelbiovol,
-     xlab="Date",
-     ylab="Cyanobacteria Relative Biovolume (as % total algal biovolume)") #plots the new time series
+Me_phyto<- merge(Me_phyto, #x data frame
+                 Me_Chl, #y data frame
+                 by=c("Yr","daynum_bin"),
+                 all.x=TRUE) #define the key fields
+Me_phyto<- merge(Me_phyto, #x data frame
+                 Me_cyanoRB, #y data frame
+                 by=c("Yr","daynum_bin"),
+                 all.x=TRUE) #define the key fields
 ```
 
-New CRB time series plotted. 
+Data merged.
 
-c) interpolating Cyanobacteria Density (CD) data...
+# Step 5. Check for NAs, interpolate missing data values as needed:
 
 ```{r}
-date_range<- seq( #creates a vector of sequence data
-  min(Me_cyanoRB$sampledate), #starting at the first sample date
-  max(Me_cyanoRB$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Me_cyanoRB$sampledate, #across date
-  Me_cyanoRB$cellsmL, #the predicted values of CD
-  xout=date_range) #for every 1 day
-CD_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
-  CyanoDens_cellsmL=interpolated$y) #renames the new vector as common field with units
+Me_phyto$Chla_ugL<- na.approx(Me_phyto$Chla_ugL) #interpolates NAs
+Me_phyto$CD_cellsmL<- na.approx(Me_phyto$CD_cellsmL) #interpolates NAs
 ```
 
-CyanoDens_cellsmL interpolated.
+Missing values interpolated.
 
-Plotting new CD time series...
+# Step 6. Summarize and view the data:
 
-```{r}
-plot(CD_interp$sampledate, CD_interp$CyanoDens_cellsmL,
-     xlab="Date",
-     ylab="Cyanobacteria Density (cells/mL)") #plots the new time series
-```
-
-New CD time series plotted. 
-
-# Step 4.  Merge the three time series:
-Note, you can only merge 2 time series at a time.
+a) Plot Chl-a by day of year...
 
 ```{r}
-Me_Algae<- merge(CD_interp, Chla_interp, by="sampledate") #merge CD and Chl-a data time series first
-Me_Algae<- merge(Me_Algae, CRB_interp, by = "sampledate") #merge combined time series with CRB data second
-```
-
-Time series merged.
-
-# Step 5. Summarize and view the data:
-
-a) adding fields needed for plotting...
-
-```{r}
-Me_Algae<- Me_Algae %>%
-  mutate(Yr=as.integer(format(sampledate, format="%Y")), #adds field with year
-         daynum=as.integer(format(sampledate, format="%j"))) #adds field with Julian day number
-```
-
-b) Plot Chl-a by day of year...
-```{r}
-ggplot(data=subset(Me_Algae, Yr>=2012 & !Yr==2017), 
-       aes(x=daynum,y=Chla_ugL)) + 
-  geom_point(aes(shape=as.factor(Yr)))+ #colors points by year 
+ggplot(data=subset(Me_phyto, !Yr==2017), #note all data in 2017 were zeroed due 
+       #to failing QA from source
+       aes(x=daynum_bin,y=Chla_ugL)) + 
+  geom_point()+ #adds points 
+  geom_line() + #adds lines between points
+  facet_wrap(~Yr) +
   labs(title="Epilimnion (depth <= 8 m) Lake Mendota, WI", #add title
        x="Day of Year", #add x axis label
        shape="Year", #add legend label as year
        y="Extracted Chl-a (ug/L)", #add y axis label
-       caption="White highlight along x-axis indicates CyanoHAB season, mid-Jul to mid-Sep. 
-       Color coding along y-axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe).
-       Red dashed line indicates moving-average regression.") + #add caption for notation
-  ylim(0, max(Me_Algae$Chla_ugL)) + #limit y-axis
-  #scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
-  #                                by=30)) + #every 30 days (1 month)
-  theme_classic()+
+       caption="Color coding along y-axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe).") + #add caption for notation
+  theme_classic(base_size=12)+
   #scale_color_continuous(name="Year")+ #adds color scale for year
-  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box days outside of CyanoHAB season
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) + #shadow box days outside of CyanoHAB season
-  annotate('rect', xmin=0, xmax=Inf, ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin), 
+           ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin), 
+           ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin), 
+           ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
-c) Plot Chl-a each year, with coding for CyanoHAB severity:
+b) Plot CD by day of year...
 
 ```{r}
-ggplot(data=subset(Me_Algae, Yr<2002 | Yr>2008  & !Yr==2017), #remove the data gap from 2002 to 2008 and in 2017
-       aes(x=daynum, y=Chla_ugL)) + 
-  geom_point() + #point plot
-  geom_line() + #add line between data points
-  scale_y_continuous(trans="log10") + # log-transforms y axis
-  facet_wrap(~Yr) + #separates out plots by year
-  labs(title="Epilimnion (depth <= 8 m) Lake Mendota, WI", #adds title
-       x="Day of Year",  #adds x-axis label
-       y="Total Algal Biomass as Chl-a (ug/L)", #adds y-axis label
-       caption="White highlight along x-axis indicates CyanoHAB season, mid-July to mid-Sept.
-       Color coding along y=axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe)") + #adds caption for notation
-  theme_classic()+
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-  annotate('rect', xmin=0, xmax=Inf, ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
-```
-
-d) Plot CD by day of year...
-
-```{r}
-ggplot(data=subset(Me_Algae, Yr >= 2012), aes(x=daynum, y=CyanoDens_cellsmL)) + 
-  geom_point(aes(shape=as.factor(Yr)))+ #colors points by year
+ggplot(data=Me_phyto, 
+       aes(x=daynum_bin, y=CD_cellsmL)) + 
+  geom_point()+ #colors points by year
+  geom_line()+
+  facet_wrap(~Yr) +
   labs(title = "Epilimnion (depth <= 8 m) Lake Mendota, WI", #adds title
        x="Day of Year", #adds x-axis label
        shape="Year",
        y="Cyanobacteria Density (cells/mL)", #adds y-xis label
-       caption="White highlight along x-axis represents CyanoHAB season, mid-Jul to mid-Sep.
-       Red dashed line indicates moving-average regression.") + #add caption for notation
-  scale_shape_manual(values=c(0,1,2,3,4,5,6,7))+ #need to specify shapes if n>6
-  scale_x_continuous(breaks = seq(0, max(Me_Algae$daynum), #places axis tick marks
-                                  by=30)) + #every 30 days (1 month)
-  theme_classic()+
+       caption="Color coding along y-axis indicates CyanoHAB severity (green = low, orange = moderate, red = severe).") + #add caption for notation
+  theme_classic(base_size=12)+
   #scale_color_continuous(name="Year")+ #adds color scale for year
-  geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-  annotate('rect', xmin=0, xmax=Inf, ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=0, xmax=Inf, ymin=100000, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin),
+           ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin),
+           ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=min(Me_phyto$daynum_bin), xmax=max(Me_phyto$daynum_bin),
+           ymin=100000, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
 ```
 
 # Step 6. Save as new data file:
 
 ```{r}
-write.csv(Me_Algae, file="Cleaned_data/Mendota_Algae.csv")
+write.csv(Me_phyto, file="Cleaned_data/Mendota_Algae.csv")
 ```
