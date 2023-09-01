@@ -1,0 +1,132 @@
+---
+title: "Mendota_plots"
+author: "Lauren Knose"
+date: "2023-08-29"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to provide the code for producing figures for the
+manuscript on legacy nutrient pollution.
+
+# Making 3D plots:
+
+Figure 7: 3D plot of P_hypo:P_epi across day number and year...
+
+```{r}
+library(plotly) #needed for interactive 3D plot
+library(dplyr) #needed for defining data
+
+Me_P_water<- read.csv(file="Cleaned_data/Mendota_P_water.csv") # water P data
+Me_P_water <- Me_P_water %>%
+  filter(Yr>= 2012 & Yr<= 2018) #filter for study period
+
+fig7<- plot_ly(x=Me_P_water$Yr, #creates 3D plot with year as x axis
+               y=Me_P_water$daynum, #day of year as y axis
+               z=Me_P_water$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
+               type="scatter3d", mode="markers", #values as points
+               color=Me_P_water$HE_ratio_TotP_mgL) #colors points by value
+fig7<- fig7 %>%
+  layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
+                    yaxis=list(title="Day of Year", tickfont=list(size=12)),
+                    zaxis=list(title="P_hypo:P_epi", tickfont=list(size=12))
+                    )
+         )
+fig7
+```
+
+Figure 22: 3D plot of Chl-a across day number and year...
+```{r}
+library(plotly) #needed for interactive 3D plot
+library(dplyr) #needed for defining data
+
+Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE)
+
+Me_Chl<- Chl %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Chla_ugL= tri_chl_spec, #renames field to common name with units
+         ) %>% 
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
+         rep=="1") %>% #remove QA analytic replicates
+  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
+  select(sampledate, Chla_ugL) #selects only fields of interest
+
+date_range<- seq( #creates a vector of sequence data
+  min(Me_Chl$sampledate), #starting at the first sample date
+  max(Me_Chl$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_Chl$sampledate, #across date
+  Me_Chl$Chla_ugL, #the predicted values of Chl-a
+  xout=date_range) #for every 1 day
+Chla_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  Chla_ugL=interpolated$y) #renames the new vector as common field with units
+
+Chla_interp<- Chla_interp %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
+         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
+         ) %>%
+  filter(Yr>=2012 & Yr<=2018) #filter for study period
+
+fig22<- plot_ly(x=Chla_interp$Yr, 
+  y=Chla_interp$daynum, 
+  z=Chla_interp$Chla_ugL, 
+  type="scatter3d", mode="markers",
+  color=Chla_interp$Chla_ugL)
+fig22<- fig22 %>%
+  layout(scene=list(xaxis=list(title="Year"),
+         yaxis=list(title="Day of Year"),
+         zaxis=list(title="Chlorophyll-a (ug/L)")))
+fig22
+```
+
+3D plot of Chl-a against P_ext and P_int...
+
+```{r}
+library(plot3D) #needed for scatter3D plot
+Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
+scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
+  y=Me_all_interp$IntP_kgday_interp, 
+  z=(Me_all_interp$Chla_ugL_interp), bty="g", pch=20, cex=2, ticktype="detailed",
+  xlab="Total P external load (kg/day)", 
+  ylab="Total P internal load (kg/day)", 
+  zlab="Total Chl-a (ug/L)")
+```
+
+3D plot of Chl-a against P_ext and P_hypo:epi...
+
+```{r}
+library(plot3D) #needed for scatter3D plot
+Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
+scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
+  y=Me_all_interp$HE_ratio_interp, 
+  z=Me_all_interp$Chla_ugL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
+  xlab="Total P external load (kg/day)", 
+  ylab="Total P Ratio Hypo: Epi", 
+  zlab="Total Chl-a (ug/L)")
+```
+
+d) plotting CD against P_ext and P_int...
+
+```{r}
+scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
+  y=Me_all_interp$IntP_kgday_interp, 
+  z=Me_all_interp$CD_cellsmL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
+  xlab="Total P external load (kg/day)", 
+  ylab="Total P internal load (kg/day)", 
+  zlab="Cyanobacteria density (cells/mL)")
+```
+
+e) plotting CD against P_ext and P_hypo:epi...
+
+```{r}
+scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
+  y=Me_all_interp$HE_ratio_interp, 
+  z=Me_all_interp$CD_cellsmL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
+  xlab="Total P external load (kg/day)", 
+  ylab="Total P Ratio Hypo: Epi", 
+  zlab="Cyanobacteria density (cells/mL)")
+```
