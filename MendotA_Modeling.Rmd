@@ -1,185 +1,50 @@
 ---
 title: "Mendota_Modeling.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2023-06-23'
+date: '2023-08-30'
 output: html_document
 editor_options: 
   chunk_output_type: console
 ---
 
-The purpose of this program is to perform an impact analysis comparing the internal vs external loading on changes in Chl-a and CyanoDensity.
+The purpose of this program is to perform an impact analysis comparing the internal vs external P loading on changes in Chl-a and CyanoDensity.
 
 
 # Step 1. Load dependent packages and data needed:
 
 a) Loading dependent packages...
 ```{r}
-library(ggplot2) #needed for plots
 library(dplyr) #needed for reshaping/reformating data
 library(corrplot) #needed for correlation matrix plot
-library(ggbreak) #needed for plot scale breaks
-library(rgl) #needed to make 3D plots
-#library(xts) #needed to convert data frame to time series
 ```
 
 b) Loading data...
-Note, ensure date data is formatted in R as Date.
 
 ```{r}
-Me_algae<- read.csv(file="Cleaned_data/Mendota_Algae.csv") #read in the file with predictor variables
-Me_extLoad<- read.csv(file="Cleaned_data/Mendota_P_allext.csv")
-Me_intLoad<- read.csv(file="Cleaned_data/Mendota_P_water.csv")
+Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
 ```
 
-# Step 2. Transform and merge the data: 
-
-a) transforming data...
+# Step 2. Check whether variables are correlated:
 
 ```{r}
-Me_algae<- Me_algae %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
-         X=NULL) #remove extra column
-Me_extLoad<- Me_extLoad %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
-         X=NULL) #remove extra column
-Me_intLoad <- Me_intLoad %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as date
-         X=NULL) #remove extra column
-```
+cor<- Me_all_interp %>% #select fields with responses, include columns with predictors
+  select(Chla_ugL_interp, CD_cellsmL_interp, #Chla and CD
+         Chla_ugL_interp_k7,CD_cellsmL_interp_k7, #Chla_t-k and CD_t-k
+         ExtP_kgday_interp_k28, #P_ext,t-k
+         IntP_kgday_interp_k28, #P_int,t-k
+         HE_ratio_interp_k28 #P_hypo:P_epi, t-k
+         ) %>%
+  mutate(#shorten names and remove duplicate fields
+    CD=CD_cellsmL_interp, CD_cellsmL_interp=NULL,
+    Chla=Chla_ugL_interp,Chla_ugL_interp=NULL,
+    Chla_k7=Chla_ugL_interp_k7, Chla_ugL_interp_k7=NULL,
+    CD_k7=CD_cellsmL_interp_k7,CD_cellsmL_interp_k7=NULL,
+    Pext=ExtP_kgday_interp_k28, ExtP_kgday_interp_k28=NULL,
+    Pint=IntP_kgday_interp_k28, IntP_kgday_interp_k28=NULL,
+    P_ratio28=HE_ratio_interp_k28,HE_ratio_interp_k28=NULL) %>%
+  na.omit() #remove NAs
 
-b) merging response and external loading data....
-Note, you can only merge two files at one time.
-
-```{r}
-Me_all<- merge(Me_algae, Me_extLoad, by="sampledate")
-Me_all<- merge(Me_all, Me_intLoad, by="sampledate")
-Me_all<- Me_all %>%
-  mutate(Yr=Yr.x, #rename field
-         Yr.x=NULL, #delete extra field
-         daynum=daynum.x, #rename field
-         daynum.x=NULL, #delete extra field
-         Yr.y=NULL, #delete extra field
-         daynum.y=NULL) #delete extra field
-```
-
-# Step 3. Calculate lagged data:
-
-a) creating a new data frame with lagged variables...
-
-```{r}
-water_int_k<- transform(Me_all, 
-                        HE_ratio_k1=lag(HE_ratio_TotP_mgL, n=1), 
-                        #adds column holding value from 1 day before
-                        HE_ratio_k7=lag(HE_ratio_TotP_mgL, n=7), 
-                        #adds column holding value from 7 days before
-                        HE_ratio_k14=lag(HE_ratio_TotP_mgL, n=14), 
-                        #adds column holding value from 30 days before
-                        HE_ratio_k30=lag(HE_ratio_TotP_mgL, n=30), 
-                        #adds column holding value from 30 days before
-                        totextP_kgday_k1=lag(extTotP_kgday, n=1), 
-                        #adds column holding value from 1 day before
-                        totextP_kgday_k7=lag(extTotP_kgday, n=7), 
-                        #adds column holding value from 7 days before
-                        totextP_kgday_k14=lag(extTotP_kgday, n=14), 
-                        #adds column holding value from 14 days before
-                        totextP_kgday_k30=lag(extTotP_kgday, n=30), 
-                        #adds column holding value from 30 days before
-                        Chla_ugL_k1=lag(Chla_ugL, n=1), 
-                        #adds column holding value from 1 day before
-                        Chla_ugL_k7=lag(Chla_ugL, n=7), 
-                        #adds column holding value from 7 days before
-                        Chla_ugL_k14=lag(Chla_ugL, n=14), 
-                        #adds column holding value from 14 days before
-                        Chla_ugL_k30=lag(Chla_ugL, n=30), 
-                        #adds column holding value from 30 days before
-                        CyanoDens_cellsmL_k1=lag(CyanoDens_cellsmL, n=1), 
-                        #adds column holding value from 1 day before
-                        CyanoDens_cellsmL_k7=lag(CyanoDens_cellsmL, n=7), 
-                        #adds column holding value from 7 days before
-                        CyanoDens_cellsmL_k14=lag(CyanoDens_cellsmL, n=14), 
-                        #adds column holding value from 14 days before
-                        CyanoDens_cellsmL_k30=lag(CyanoDens_cellsmL, n=30) 
-                        #adds column holding value from 30 days before
-)
-```
-
-Lagged data compute and added to data frame. 
-
-# Step 4. Save as new data file:
-
-```{r}
-write.csv(Me_all, file="Cleaned_data/Mendota_modeldata.csv")
-```
-
-Merged data file saved as "Mendota_modeldata.csv".
-
-# Step 5. Check data for normality to determine whether transformation needed:
-If data is normally distributed, then you can use simple linear regression or 
-ANOVA. If data is non-normally distributed, then you need to pick a 
-non-parametric model. The general linear model does not require 
-normal-distribution.
-
-checking for normality...
-
-```{r}
-layout(matrix(c(1,2, 3, 4, 5, 6, 7, 8), #make a matrix of # rows and # columns
-              2)) 
-hist(water_int_k$Chla_ugL, breaks=50,
-     main="non-transformed",
-     xlab="Chl-a (ug/L)") #prints histograph of Chl-a
-#data right skewed
-hist(log10(water_int_k$Chla_ugL+0.01), breaks=50,
-     main="log-transformed",
-     xlab="Chl-a (ug/L)") #prints histograph of log10(Chl-a)
-#log-transform data is more normal
-hist(water_int_k$CyanoDens_cellsmL, breaks=50,
-     main="non-transformed",
-     xlab="Cyano Density (cells/mL)") #prints histograph of CD
-#data right skewed
-hist(log10(water_int_k$CyanoDens_cellsmL), breaks=50,
-     main="log-transformed",
-     xlab="Cyano Density (cells/mL)") #prints histograph of log10(CD)
-#log-transform data is more normal
-hist(water_int_k$extTotP_kgday, breaks=50,
-     main="non-transformed",
-     xlab="External P loading (kg/day)") #prints hist of ext load term
-#data right skewed
-hist(log10(water_int_k$extTotP_kgday), breaks=50,
-     main="log-transformed",
-     xlab="External P loading (kg/day)") #prints hist of ext load term
-#data more normal, but still right skewed
-hist(water_int_k$HE_ratio_TotP_mgL, breaks=50,
-     main="non-transformed",
-     xlab="Hypo: Epi total P") #prints hist of int load term
-#data right-skewed
-hist(log10(water_int_k$HE_ratio_TotP_mgL), breaks=50,
-     main="log-transformed",
-     xlab="Hyo: Epi total P") #prints hist of int load 
-#data more normal
-par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
-```
-
-All data is positively skewed, so both predictor and response variables 
-need to be transformed to log 10 for modeling.
-
-# Step 6. Check whether variables are correlated:
-
-```{r}
-cor<- water_int_k %>% 
-  select(CyanoDens_cellsmL, Chla_ugL, #select the columns with data needed
-         totextP_kgday_k14, HE_ratio_k7, CyanoDens_cellsmL_k7, Chla_ugL_k7) %>%
-  mutate(CD=log10(CyanoDens_cellsmL), Chla=log10(Chla_ugL+0.01), #log-transform
-         Pext=log10(totextP_kgday_k14), 
-         Pint=log10(HE_ratio_k7), 
-         CD_k7=log10(CyanoDens_cellsmL_k7),
-         Chla_k7=log10(Chla_ugL_k7+0.01)) %>% #log-transform values
-  mutate(CyanoDens_cellsmL=NULL, 
-         Chla_ugL=NULL, 
-         totextP_kgday_k14=NULL,
-         HE_ratio_k7=NULL, 
-         CyanoDens_cellsmL_k7=NULL, 
-         Chla_ugL_k7=NULL) #remove columns with non-trransformed data
-M=cor(cor, method="kendall") #perform correlation using Kendall tau method
+M=cor(cor, method="pearson") #perform correlation using Kendall tau method
 corrplot(M, #plot cor matrix
          diag=FALSE, #remove diagonal that shows corr of vars with themselves
          outline=TRUE, #add outline around shapes to see
@@ -188,34 +53,32 @@ corrplot(M, #plot cor matrix
          type='upper') #only show upper half of matrix
 ```
 
-# Step 7. Perform regression:
+# Step 3. Perform regression:
 
-a) Run first model for Chl-a...
-
-Chla_t = hypoP:epiP_t-7 + Chla_t-7 + error...
+a) Running first model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + error
 
 ```{r}
-regka_Chla<- glm(formula=log10(Chla_ugL+0.01) ~ #response variable
-              log10(totextP_kgday_k) + #X1 predictor variable
-               log10(Chla_ugL_k+0.01), #Y predictor variable
-              data=water_int_k) #data frame
+regka_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chl-a_t-k
+                log10(ExtP_kgday_interp_k28), #P_ext,t-k
+              data=Me_all_interp) #data frame
 summary(regka_Chla)#prints the glm output
 aov(regka_Chla)#prints the sum of squares for the regression and residuals
-layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
 plot(regka_Chla) #prints diagnostic graphs for regression
 par(mfrow=c(1,1))
 ```
 
-b) Run second model for Chl-a...
-
-Chla_t = ExtPLoad_t-14 + Chla_t-7 + hypoP:epiP_t-7 + error...
+b) Running second model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + P_int,t-k + error
 
 ```{r}
-regkb_Chla<- glm(formula=log10(Chla_ugL+0.01) ~ #response variable
-              log10(totextP_kgday_k) + #X1 predictor variable
-               log10(Chla_ugL_k+0.01) + #Y redictor variable
-                log10(HE_ratio_k), #X2 predictor variable, #X2 predictor variable
-              data=water_int_k) #data frame
+regkb_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=Me_all_interp) #data frame
 summary(regkb_Chla)#prints the glm output
 aov(regkb_Chla)#prints the sum of squares for the regression and residuals
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
@@ -223,15 +86,62 @@ plot(regkb_Chla) #prints diagnostic graphs for regression
 par(mfrow=c(1,1))
 ```
 
-c) Run first model for CD...
-
-CD_t = hypoP:epiP_t-7 + CD_t-7 + error...
+c) Running third model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-7) + log10(P_ext,t-k) + log10(P_hypo:P_epiP,t-k) + error
 
 ```{r}
-regkc_CD<- glm(formula=log10(CyanoDens_cellsmL) ~ #response variable
-              log10(totextP_kgday_k) + #X1 predictor variable
-               log10(CyanoDens_cellsmL_k), #Y predictor variable
-              data=water_int_k) #data frame
+regkc_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+               log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                log10(HE_ratio_interp_k21), #P_hypo:P_epiP,t-k
+              data=Me_all_interp) #data frame
+summary(regkc_Chla)#prints the glm output
+aov(regkc_Chla)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regkc_Chla) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+d) Running first model for CD...
+Model: log10(CD_t) ~ log10(CD_t-k) + log10(P_ext,t-k) + error
+
+```{r}
+regka_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28), #P_ext,t-k
+              data=Me_all_interp) #data frame
+summary(regka_CD)#prints the glm output
+aov(regka_CD)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+plot(regka_CD) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+e) Running second model for CD...
+Model: log10(CD_t) ~ log10(CD_t-k) + log10(P_ext,t-k) + P_int,t-k + error
+
+```{r}
+regkb_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=Me_all_interp) #data frame
+summary(regkb_CD)#prints the glm output
+aov(regkb_CD)#prints the sum of squares for the regression and residuals
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(regkb_CD) #prints diagnostic graphs for regression
+par(mfrow=c(1,1))
+```
+
+f) Running third model for CD...
+Model: CD_t ~ CD_t-7 + P_ext,t-k + P_hypo:P_epiP,t-k + error
+
+```{r}
+regkc_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                log10(HE_ratio_interp_k28), #P_hypo:P_epiP,t-k
+              data=Me_all_interp) #data frame
 summary(regkc_CD)#prints the glm output
 aov(regkc_CD)#prints the sum of squares for the regression and residuals
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
@@ -239,66 +149,29 @@ plot(regkc_CD) #prints diagnostic graphs for regression
 par(mfrow=c(1,1))
 ```
 
-b) Run second model for CD...
+Pick the model with the lowest AIC, Residual standard error, and each term is significant (t-score p-value < 0.05) is the best model.
 
-CD_t = ExtPLoad_t-14 + Cd_t-7 + hypoP:epiP_t-7 + error...
-
-```{r}
-regkd_CD<- glm(formula=log10(CyanoDens_cellsmL) ~ #response variable
-              log10(totextP_kgday_k) + #X1 predictor variable
-               log10(CyanoDens_cellsmL_k) + #Y redictor variable
-                log10(HE_ratio_k), #X2 predictor variable, #X2 predictor variable
-              data=water_int_k) #data frame
-summary(regkd_CD)#prints the glm output
-aov(regkd_CD)#prints the sum of squares for the regression and residuals
-layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
-plot(regkd_CD) #prints diagnostic graphs for regression
-par(mfrow=c(1,1))
-```
-
-# Step 7. Compare the models:
-The model with the lowest AIC, Residual standard error, and each term is
-significant (t-score p-valu < 0.05) is the best model.
-
-# Step 8. Compare the output by year:
+# Step 4. Using the best model, calculate the variance for each term:
 
 ```{r}
-YRregk_Chla<- glm(formula=log10(Chla_ugL+0.01) ~ #response variable
-              log10(totextP_kgday_k) + #X1 predictor variable
-               log10(Chla_ugL_k+0.01) + #Y redictor variable
-                log10(HE_ratio_k), #X2 predictor variable, #X2 predictor variable
-              data=subset(water_int_k, Yr==2012) #data from year z
-             )
+YRregk_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2018)) #subset data by year
 aov(YRregk_Chla)#prints the sum of squares for the regression and residuals
 ```
 
 Results imputed into excel table for graphing.
 
 ```{r}
-YRregk_CD<- glm(formula=log10(CyanoDens_cellsmL) ~ #response variable
-             log10(totextP_kgday_k) + #X1 predictor variable
-               log10(CyanoDens_cellsmL_k) + #Y redictor variable
-                log10(HE_ratio_k), #X2 predictor variable, #X2 predictor variable
-              data=subset(water_int_k, Yr==2012) #data frame
+YRregk_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2018) #subset data by year
             )
 aov(YRregk_CD)
 ```
 
 Results imputed into excel table for graphing.
-
-# Step 9. Making a 3D plot of the selected model:
-
-```{r}
-mycols <- colorRampPalette( c("green", "red") )
-plot3d( 
-  x=log10(water_int_k$HE_ratio_k7), 
-  y=water_int_k$totextP_kgday_k14, 
-  z=(water_int_k$Chla_ugL), 
-  colvar=(water_int_k$Chla_ugL),
-  type = 's', 
-  size=0.75,
-  xlab="Hypo: Epi P ratio", 
-  ylab="Total P external load (lb/day)", 
-  zlab="Total Chl-a from 7 days before (ug/L)")
-rglwidget()
-```
