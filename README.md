@@ -1,7 +1,6 @@
 # LakeLegacyNP
-This project is focused on quantifying legacy internal P loading versus external
-P loading to a lake basin and determine the relative contribution of each on 
-CyanoHAB severity.
+This project is focused on quantifying the impact of legacy internal P loading versus external
+P loading on changes in cyanobacteria bloom severity in a lake over time. This project was funded by 
 
 # Authorship:
 This GitHub was generated and maintained by Dr. Lauren Knose, ORISE Fellow with the
