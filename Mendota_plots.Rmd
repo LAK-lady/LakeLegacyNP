@@ -30,7 +30,7 @@ fig7<- plot_ly(x=Me_P_water$Yr, #creates 3D plot with year as x axis
 fig7<- fig7 %>%
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
-                    zaxis=list(title="P_hypo:P_epi", tickfont=list(size=12))
+                    zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
          )
 fig7
