@@ -83,6 +83,60 @@ fig22<- fig22 %>%
 fig22
 ```
 
+
+Figure 23: 3D plot of CD across day number and year...
+```{r}
+library(plotly) #needed for interactive 3D plot
+library(dplyr) #needed for defining data
+
+phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+
+Me_cyanoRB<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
+  filter(Yr>=2012 & Yr<=2018) #filter for study years
+
+date_range<- seq( #creates a vector of sequence data
+  min(Me_cyanoRB$sampledate), #starting at the first sample date
+  max(Me_cyanoRB$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_cyanoRB$sampledate, #across date
+  Me_cyanoRB$CD_cellsmL, #the predicted values of Cyanos
+  xout=date_range) #for every 1 day
+CD_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  CD_cellsmL=interpolated$y) #renames the new vector as common field with units
+
+CD_interp<- CD_interp %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
+         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
+         ) %>%
+  filter(Yr>=2012 & Yr<=2018) #filter for study period
+
+fig23<- plot_ly(x=CD_interp$Yr, 
+  y=CD_interp$daynum, 
+  z=CD_interp$CD_cellsmL, 
+  type="scatter3d", mode="markers",
+  color=CD_interp$CD_cellsmL)
+fig23<- fig23 %>%
+  layout(scene=list(xaxis=list(title="Year"),
+         yaxis=list(title="Day of Year"),
+         zaxis=list(title="Cyanobacteria Density (cells/mL)")))
+fig23
+```
+
+
+
+
 3D plot of Chl-a against P_ext and P_int...
 
 ```{r}
