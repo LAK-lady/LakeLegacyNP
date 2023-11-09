@@ -1,18 +1,26 @@
-# LakeLegacyNP
-This project is focused on quantifying the impact of legacy internal P loading versus external
-P loading on changes in cyanobacteria bloom severity in a lake over time. This project was funded by 
+# Overview
+The purpose of this site is to provide the code and data used to quantify the impact
+of internal legacy P load on cyanobacteria bloom severity in a lake and map areas
+upstream of the lake with potential legacy P stores. 
+
+The code and data contained herein are provided as supplemnetal material associated 
+with the following article: 
+Knose, L.A.; Cole, D.; Martin-Hernandez, E.; Vaneeckhaute, C.; Ruiz-Mercado, G.J.; 
 
 # Authorship:
 This GitHub was generated and maintained by Dr. Lauren Knose, ORISE Fellow with the
 U.S. Environmental Protection Agency Office of Research and Development. Dr. 
 Knose is the author of the R code and programs. David Cole, PhD Student at the
-University of Wisconsin, is the author of the Python code and programs. To cite 
-this work, please use the following citation. 
-
-Knose, L., Cole, D., Ruiz-Mercado, D.; Gonzalez, M.; Martin-Hernandez, E.; 
-Zavala, V. *(manuscript in prep)*
+University of Wisconsin, is the author of the Python code and programs. 
 
 # Contents:
+There are two main frameworks contained in this Git-hub site. 
+
+The first is an R framework for quantifying external P loads, internal legacy P loads, and source 
+impact on cyanobacteria bloom severity in Lake Mendota, WI (USA). 
+The second is a 
+Python framework for mapping upstream sub-watersheds (HUC 12) of stream monitoring 
+stations 
 
 ## 1. Programs:
 All programs, written in R or Python, used in this project are provided in this 
