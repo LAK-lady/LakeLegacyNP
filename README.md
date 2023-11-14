@@ -16,8 +16,9 @@ R language was used to mine and process the data and quantify the impact of tota
   1. TotalP_external_atmdep.Rmd - calculates external total P loads from atmospheric deposition
   2. TotalPexternal_inflows.Rmd - calculates external total P loads from inflows (streams)
   3. TotalP_external_all.Rmd - calculates the sum of external total P loads (streams + atmospheric deposition)
-  4a. EpiVolume.Rmd - calculates the change in volume of the epilimnion  using temperature profiles
-  4b. TotalP_water.Rmd - calculates the total P concentration in the epilimnion, total P concentration in the hypolimnion, and ratio of total P in hypolimnion to epilimnion (as alternative indicator of internal P load)
+  4.
+      (a) EpiVolume.Rmd - calculates the change in volume of the epilimnion  using temperature profiles
+      (b) TotalP_water.Rmd - calculates the total P concentration in the epilimnion, total P concentration in the hypolimnion, and ratio of total P in hypolimnion to epilimnion (as alternative indicator of internal P load)
   5. TotalP_internal.Rmd - calculates internal total P loads (or alternatively the ratio of totalP_hypo:totalP_epi)
   6. cyanoHAB_severity.Rmd - calculates cyanoHAB severity (as Chl-a and cyanobacteria relative biovolume)
   7. Impact_Modeling.Rmd - performs the statstical modeling for impact analysis on cyanoHAB severity by source (external vs internal) and outputs the partitioned sum of squares for each predictor term 
