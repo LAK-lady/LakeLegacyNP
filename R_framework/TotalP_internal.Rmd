@@ -1,5 +1,5 @@
 ---
-title: "Mendota_Pinternal_all"
+title: "TotalP_internal.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-08-25'
 output: html_document
@@ -29,7 +29,7 @@ b) loading dependent data...
 ```{r}
 waterP<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) 
 # original water chemistry data file which has P concentrations
-EpiVol<- read.csv(file="Cleaned_data/Mendota_EpiVolume.csv", header=TRUE)
+EpiVol<- read.csv(file="Cleaned_data/EpiVolume.csv", header=TRUE)
 # output data file with change in epi volume calculations
 ```
 
@@ -333,5 +333,5 @@ Average daily P load from entrainment calculated.
 # Step 9. Save the data as a new data file:
 
 ```{r}
-write.csv(IntP, file="Cleaned_data/Mendota_P_allint.csv")
+write.csv(IntP, file="Cleaned_data/TotalP_allint.csv")
 ```

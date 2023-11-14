@@ -1,5 +1,5 @@
 ---
-title: "Mendota_Pexternal_inflow"
+title: "TotalP_external_inflows.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-03-06'
 output:
@@ -33,9 +33,9 @@ Packages loaded.
 b) Loading the data needed...
 
 ```{r}
-PB_TotP_flow<- read.csv(file="Cleaned_data/Inflow_PheasantBranch_TotP.csv")
-YR_TotP_flow<- read.csv(file="Cleaned_data/YaharaRiver_TotP_combined.csv")
-SMC_TotP_flow<- read.csv(file="Cleaned_data/Inflow_SixMileCreek_TotP.csv")
+PB_TotP_flow<- read.csv(file="Cleaned_data/PheasantBranch_TotP.csv")
+YR_TotP_flow<- read.csv(file="Cleaned_data/YaharaRiver_TotP.csv")
+SMC_TotP_flow<- read.csv(file="Cleaned_data/SixMileCreek_TotP.csv")
 ```
 
 Total P data loaded.
@@ -263,7 +263,7 @@ The average annual total P load, for the year, was
 # Step 6. Save new data file.
 
 ```{R}
-write.csv(Inflows, file="Cleaned_data/Mendota_P_inflows.csv") #save as new data file
+write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data file
 ```
 
-Data file saved as "Mendota_P_inflows.csv".
+Data file saved as "TotalP_inflows.csv" in the Cleaned_data folder.

@@ -1,5 +1,5 @@
 ---
-title: "Mendota_EpiVolume"
+title: "EpiVolume.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-08-25'
 output: html_document
@@ -246,7 +246,7 @@ Missing data interpolated.
 
 ```{r}
 Vol_epi_int <- Vol_epi_int %>% select(date, Vol_epi_m3, Thermo_depth_m)
-write.csv(Vol_epi_int, file="Cleaned_data/Mendota_EpiVolume.csv")
+write.csv(Vol_epi_int, file="Cleaned_data/EpiVolume.csv")
 ```
 
 Data saved as new file in Cleaned_data folder as Mendota_EpiVolume.csv"

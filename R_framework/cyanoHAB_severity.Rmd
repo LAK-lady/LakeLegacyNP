@@ -1,5 +1,5 @@
 ---
-title: "Mendota_Algae"
+title: "cyanoHAB_severity.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-02-15'
 output: html_document
@@ -257,5 +257,5 @@ ggplot(data=Me_phyto,
 # Step 6. Save as new data file:
 
 ```{r}
-write.csv(Me_phyto, file="Cleaned_data/Mendota_Algae.csv")
+write.csv(Me_phyto, file="Cleaned_data/cyanoHAB_severity.csv")
 ```

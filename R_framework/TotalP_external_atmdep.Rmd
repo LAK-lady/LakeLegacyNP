@@ -1,5 +1,5 @@
 ---
-title: "Mendota_Pexternal_atmdep"
+title: "TotalP_external_atmdep"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-05-24'
 output: html_document
@@ -28,7 +28,7 @@ b) Loading the data needed...
 Note, ensure date data is formatted in R as Date.
 
 ```{r}
-precip<- read.csv(file="Original_data/NOAA_Weather_Mendota_2012to2022.csv")
+precip<- read.csv(file="Original_data/NWS_data.csv")
 ```
 
 Precipitation data loaded.
@@ -182,7 +182,7 @@ Total P load from atm deposit plotted by year.
 # Step 5. Save estimated P atm deposition as separate data file:
 
 ```{r}
-write.csv(precip_interp, file="Cleaned_data/Mendota_P_atm.csv")
+write.csv(precip_interp, file="Cleaned_data/TotalP_atm.csv")
 ```
 
-New data file saved as "Mendota_P_atm.csv" in clean data folder.
+New file saved as "TotalP_atm.csv" in the Cleaned_data folder.

@@ -1,5 +1,5 @@
 ---
-title: "Mendota_TotP_ext_all.Rmd"
+title: "TotalP_external_all.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-06-20'
 output: html_document
@@ -25,8 +25,8 @@ Packages loaded.
 b) Loading dependent data....
 
 ```{r}
-streams<- read.csv(file="Cleaned_data/Mendota_P_inflows.csv") 
-atm<- read.csv(file="Cleaned_data/Mendota_P_atm.csv")
+streams<- read.csv(file="Cleaned_data/TotalP_inflows.csv") 
+atm<- read.csv(file="Cleaned_data/TotalP_atm.csv")
 ```
 
 Data loaded.
@@ -185,7 +185,7 @@ The average annual total P load from streams was `r mean(atm_load_yr$sum)` +-
 extP_load<- extP_load %>%
   filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season
   filter(Yr>=2012 & Yr<=2018) #filter for the study period
-write.csv(extP_load, file="Cleaned_data/Mendota_P_allext.csv")
+write.csv(extP_load, file="Cleaned_data/TotalP_allext.csv")
 ```
 
 New data file created with total external P loading.

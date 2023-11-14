@@ -1,5 +1,5 @@
 ---
-title: "Mendota_P_water"
+title: "TotalP_water.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-04-10'
 output: html_document
@@ -199,5 +199,5 @@ ggplot(data=subset(Me_P_water, Yr>=2012),
 # Step 5. Save the new data file:
 
 ```{r}
-write.csv(Me_P_water, file="Cleaned_data/Mendota_P_water.csv")
+write.csv(Me_P_water, file="Cleaned_data/TotalP_water.csv")
 ```

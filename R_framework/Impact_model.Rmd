@@ -1,5 +1,5 @@
 ---
-title: "Mendota_Modeling.Rmd"
+title: "Impact_model.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
 date: '2023-08-30'
 output: html_document
@@ -21,7 +21,7 @@ library(corrplot) #needed for correlation matrix plot
 b) Loading data...
 
 ```{r}
-Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
+Me_all_interp<- read.csv(file="Cleaned_data/Impact_model_input_data.csv")
 ```
 
 # Step 2. Check whether variables are correlated:
@@ -151,27 +151,123 @@ par(mfrow=c(1,1))
 
 Pick the model with the lowest AIC, Residual standard error, and each term is significant (t-score p-value < 0.05) is the best model.
 
-# Step 4. Using the best model, calculate the variance for each term:
+# Step 4. Using the best model, calculate the variance for each term for each 
+year:
 
+a) calculating source-attributed impact for Chla...
 ```{r}
-YRregk_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+YRregk_Chla_2012<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2012)) #subset data by year
+aov(YRregk_Chla_2012)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2013<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2013)) #subset data by year
+aov(YRregk_Chla_2013)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2014<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2014)) #subset data by year
+aov(YRregk_Chla_2014)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2015<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2015)) #subset data by year
+aov(YRregk_Chla_2015)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2016<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2016)) #subset data by year
+aov(YRregk_Chla_2016)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2017<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2017)) #subset data by year
+aov(YRregk_Chla_2017)#prints the sum of squares for the regression and residuals
+
+YRregk_Chla_2018<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
               log10(Chla_ugL_interp_k7) + #Chla_t-k
                 log10(ExtP_kgday_interp_k28) + #P_ext,t-k
                 IntP_kgday_interp_k28, #P_int,t-k
               data=subset(Me_all_interp, Yr==2018)) #subset data by year
-aov(YRregk_Chla)#prints the sum of squares for the regression and residuals
+aov(YRregk_Chla_2018)#prints the sum of squares for the regression and residuals
+
+
 ```
 
-Results imputed into excel table for graphing.
+Yearly source-attributed impact outputted.
+
+b) calculating source-attributed impact for CD...
 
 ```{r}
-YRregk_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+YRregk_CD_2012<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2012) #subset data by year
+            )
+aov(YRregk_CD_2012)
+
+YRregk_CD_2013<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2013) #subset data by year
+            )
+aov(YRregk_CD_2013)
+
+YRregk_CD_2014<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2014) #subset data by year
+            )
+aov(YRregk_CD_2014)
+
+YRregk_CD_2015<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2015) #subset data by year
+            )
+aov(YRregk_CD_2015)
+
+YRregk_CD_2016<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2016) #subset data by year
+            )
+aov(YRregk_CD_2016)
+
+YRregk_CD_2017<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2017) #subset data by year
+            )
+aov(YRregk_CD_2017)
+
+YRregk_CD_2018<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
               log10(CD_cellsmL_interp_k7) + #CD_t-k
                 log10(ExtP_kgday_interp_k28) + #P_ext,t-k
                 IntP_kgday_interp_k28, #P_int,t-k
               data=subset(Me_all_interp, Yr==2018) #subset data by year
             )
-aov(YRregk_CD)
+aov(YRregk_CD_2018)
 ```
 
-Results imputed into excel table for graphing.
+Yearly source-attributed impact outputted.

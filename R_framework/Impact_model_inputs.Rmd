@@ -1,5 +1,5 @@
 ---
-title: "Mendota_ModelData.Rmd"
+title: "Impact_model_inputs.Rmd"
 author: "Lauren Knose"
 date: "2023-08-30"
 output: html_document
@@ -21,10 +21,10 @@ b) Loading data...
 Note, ensure date data is formatted in R as Date.
 
 ```{r}
-Me_algae<- read.csv(file="Cleaned_data/Mendota_Algae.csv")
-Me_extLoad<- read.csv(file="Cleaned_data/Mendota_P_allext.csv")
-Me_intLoad<- read.csv(file="Cleaned_data/Mendota_P_allint.csv")
-Me_hypoepiRatio<- read.csv(file="Cleaned_data/Mendota_P_water.csv")
+Me_algae<- read.csv(file="Cleaned_data/cyanoHAB_severity.csv")
+Me_extLoad<- read.csv(file="Cleaned_data/TotalP_allext.csv")
+Me_intLoad<- read.csv(file="Cleaned_data/TotalP_allint.csv")
+Me_hypoepiRatio<- read.csv(file="Cleaned_data/TotalP_water.csv")
 ```
 
 # Step 2. Define and merge the data the data: 
@@ -317,7 +317,7 @@ Lagged data computed and added to new data frame.
 # Step 6. Save as new data file:
 
 ```{r}
-write.csv(Me_all_interp, file="Cleaned_data/Mendota_modeldata.csv")
+write.csv(Me_all_interp, file="Cleaned_data/Impact_model_input_data.csv")
 ```
 
-Merged data file saved as "Mendota_modeldata.csv".
+Merged file saved as "Impact_model_input_data.csv" in Clean_data folder.
