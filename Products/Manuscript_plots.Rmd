@@ -1,5 +1,5 @@
 ---
-title: "M_plots"
+title: "Manuscript_plots.Rmd"
 author: "Lauren Knose"
 date: "2023-08-29"
 output: html_document
@@ -10,15 +10,48 @@ editor_options:
 The purpose of this program is to provide the code for producing figures for the
 manuscript on legacy nutrient pollution.
 
-# Making 3D plots:
+# Figure 3: Average daily Secchi disk depth and cyanobacteria relative biomass.
 
-Figure 7: 3D plot of P_hypo:P_epi across day number and year...
+## a) loading dependent data and packages...
+
+```{r}
+library(ggplot2) #needed for plotting
+library(dplyr) #needed for reformatting data
+Secchi<- read.csv(file="Original_data/ntl31_v9_secchi.csv") #Secchi depth data
+phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+```
+
+Data and packages loaded.
+
+## b) reformatting data for plotting...
+
+```{r}
+Me_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
+  filter(lakeid=="ME") %>% #filter for Lake Mendota data
+  select(sampledate, secview, secnview) %>% #select fields of interest
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
+
+Me_cyanoRB<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(relbiovol=sum(relative_total_biovolume)) %>% #sums all cyano biovol
+  filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
+```
+
+# Figure 7: 3D plot of P_hypo:P_epi across day number and year...
 
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
 
-Me_P_water<- read.csv(file="Cleaned_data/Mendota_P_water.csv") # water P data
+Me_P_water<- read.csv(file="Cleaned_data/TotalP_water.csv") # water P data
 Me_P_water <- Me_P_water %>%
   filter(Yr>= 2012 & Yr<= 2018) #filter for study period
 
@@ -36,7 +69,7 @@ fig7<- fig7 %>%
 fig7
 ```
 
-Figure 22: 3D plot of Chl-a across day number and year...
+# Figure 22: 3D plot of Chl-a across day number and year...
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
@@ -84,7 +117,7 @@ fig22
 ```
 
 
-Figure 23: 3D plot of CD across day number and year...
+# Figure 23: 3D plot of CD across day number and year...
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
@@ -137,7 +170,7 @@ fig23
 
 
 
-3D plot of Chl-a against P_ext and P_int...
+# 3D plot of Chl-a against P_ext and P_int...
 
 ```{r}
 library(plot3D) #needed for scatter3D plot
@@ -150,7 +183,7 @@ scatter3D(x=Me_all_interp$ExtP_kgday_interp,
   zlab="Total Chl-a (ug/L)")
 ```
 
-3D plot of Chl-a against P_ext and P_hypo:epi...
+# 3D plot of Chl-a against P_ext and P_hypo:epi...
 
 ```{r}
 library(plot3D) #needed for scatter3D plot
