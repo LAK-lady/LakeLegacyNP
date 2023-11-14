@@ -13,13 +13,14 @@ There are two main frameworks contained in this Git-hub site. The first is a dat
 
 ## 1. R Model Framework
 R language was used to mine and process the data and quantify the impact of total P loads on cyanobacteria bloom severity, attributed to source (external load vs internal legacy load). All programs written in R language used in this project are provided in the R_framework folder. All R models are written as R Markdown files (.Rmd). The specific order in which R programs should be run to achieve the same results, as shown in the manuscript, is as follows:
-1a. Mendota_P_external_atmdep.Rmd - calculates the external P loading from atm
-1b. Mendota_Pexternal_inflow.Rmd - calculates the external P loading from streams
-1c. Mendota_P_ext_all.Rmd - combines the external P loading from streams and atm
-1d. Mendota_Volume.Rmd - calculates the volume of the lake layers using temperature profiles
-1e. Mendota_P_internal_all.Rmd - calculates the internal loading of P using mass balance and alternatively, the ratio of total P in hypolimnion to epilimnion
-1f. Mendota_Algae.Rmd - calculates the Chl-a and cyanobacteria relative biovolume as response variables
-1g. Mendota_modeling.Rmd - performs the statstical modeling for impact analysis and outputs the partitioned sum of squares for each predictor term 
+- 1. TotalP_external_atmdep.Rmd - calculates external total P loads from atmospheric deposition
+- 2. TotalPexternal_inflows.Rmd - calculates external total P loads from inflows (streams)
+- 3. TotalP_external_all.Rmd - calculates the sum of external total P loads (streams + atmospheric deposition)
+- 4a. EpiVolume.Rmd - calculates the change in volume of the epilimnion  using temperature profiles
+- 4b. TotalP_water.Rmd - calculates the total P concentration in the epilimnion, total P concentration in the hypolimnion, and ratio of total P in hypolimnion to epilimnion (as alternative indicator of internal P load)
+- 5. TotalP_internal.Rmd - calculates internal total P loads (or alternatively the ratio of totalP_hypo:totalP_epi)
+- 6. cyanoHAB_severity.Rmd - calculates cyanoHAB severity (as Chl-a and cyanobacteria relative biovolume)
+- 7. Impact_Modeling.Rmd - performs the statstical modeling for impact analysis on cyanoHAB severity by source (external vs internal) and outputs the partitioned sum of squares for each predictor term 
 
 ## 2. Python Model Framework
 Python language was used to mine and process the data, map potential legacy P stores in upstream sub-watersheds, and quantify total P load per contributing area across sub-watersheds. All programs written in Python language used in this project are provided in Python_framework folder. All R models are written as R Markdown files (.Rmd). The specific order in which R programs should be run to achieve the same results, as shown in the manuscript, is as follows:
