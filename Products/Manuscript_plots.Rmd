@@ -10,6 +10,12 @@ editor_options:
 The purpose of this program is to provide the code for producing figures for the
 manuscript on legacy nutrient pollution.
 
+# Figure 1: R model framework.
+This figure was produced in Microsoft PowerPoint and saved as a jpeg file.
+
+# Figure 2. Python model framework.
+This figure was produced in Microsoft PowerPoint and saved as a jpeg file. 
+
 # Figure 3: Average daily Secchi disk depth and cyanobacteria relative biomass.
 
 ## a) loading dependent data and packages...
@@ -29,7 +35,7 @@ Data and packages loaded.
 Me_Secchi<- Secchi %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
   filter(lakeid=="ME") %>% #filter for Lake Mendota data
-  select(sampledate, secview, secnview) %>% #select fields of interest
+  select(sampledate, secnview) %>% #select fields of interest
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
          daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
 
@@ -43,30 +49,78 @@ Me_cyanoRB<- phyto %>%
   filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
          daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
+Figure3_data<- merge(Me_Secchi, Me_cyanoRB, by=c("sampledate","Yr","daynum"),
+                       all=TRUE)
+write.csv(Figure3_data, file="Products/Figure3_data.csv")
 ```
 
-# Figure 7: 3D plot of P_hypo:P_epi across day number and year...
+Data reformatted.
 
+## c) plotting data...
+
+```{r}
+a<- ggplot(data=Figure3_data, aes(x=daynum, y=secnview)) + #plots SD across day
+  geom_point(shape=1) + #plots observations as points
+  theme_classic(base_size=12) +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", y="Secchi depth (m)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+b <- ggplot(data=Figure3_data, aes(x=daynum, y=relbiovol)) + #plots cyano RB across day
+  geom_point(shape=17) + #plots observations as triangles
+  theme_classic(base_size=12) +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", 
+       y="Cyanobacteria relative biovolume 
+       as % total phytoplankton biovolume)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+a / b #plot a over plot b
+ggsave("Products/Figure3_color.png")
+```
+
+Data plotted.
+
+# Figure 4. Bathymetry map of Lake mendota and water column.
+This figure was produced in Microsoft PowerPoint and saved as a jpeg file. 
+
+# Figure 5. Variability in cyanoHAB severity (as Chl-a) explained.
+
+
+# Figure 6. Variability in cyanoHAB severity (as cyanobacteria density) explained.
+
+
+# Figure 7. Annual internal legacy total P load (kg-year-1) 
+
+# Figure 8. Annual external total P load (kg-year-1) 
+
+# Figure 9. Total P loading for the three main inflows of Lake Mendota, WI (USA)
+
+
+# Figure 10. Ratio of total P concentration between hypolimnion and epilimnion 
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
-
 Me_P_water<- read.csv(file="Cleaned_data/TotalP_water.csv") # water P data
 Me_P_water <- Me_P_water %>%
   filter(Yr>= 2012 & Yr<= 2018) #filter for study period
-
-fig7<- plot_ly(x=Me_P_water$Yr, #creates 3D plot with year as x axis
+write.csv(Me_P_water, file="Products/Figure10_data.csv")
+fig10<- plot_ly(x=Me_P_water$Yr, #creates 3D plot with year as x axis
                y=Me_P_water$daynum, #day of year as y axis
                z=Me_P_water$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
                color=Me_P_water$HE_ratio_TotP_mgL) #colors points by value
-fig7<- fig7 %>%
+fig10<- fig10 %>%
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
          )
-fig7
+ggsave("Products/Figure10_color.png")
 ```
 
 # Figure 22: 3D plot of Chl-a across day number and year...
