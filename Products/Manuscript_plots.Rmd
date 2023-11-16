@@ -124,6 +124,9 @@ fig10<- fig10 %>%
 fig10
 ```
 
+# Figure 11. Optimized hot spot analysis of total P
+This figure was produced in ESRI ArcGIS Pro and saved as a jpeg file. 
+
 # Figure 22: 3D plot of Chl-a across day number and year...
 ```{r}
 library(plotly) #needed for interactive 3D plot
