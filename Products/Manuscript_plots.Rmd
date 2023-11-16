@@ -106,21 +106,22 @@ This figure was produced in Microsoft PowerPoint and saved as a jpeg file.
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
 Me_P_water<- read.csv(file="Cleaned_data/TotalP_water.csv") # water P data
-Me_P_water <- Me_P_water %>%
-  filter(Yr>= 2012 & Yr<= 2018) #filter for study period
-write.csv(Me_P_water, file="Products/Figure10_data.csv")
-fig10<- plot_ly(x=Me_P_water$Yr, #creates 3D plot with year as x axis
-               y=Me_P_water$daynum, #day of year as y axis
-               z=Me_P_water$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
+Me_P_ratio <- Me_P_water %>%
+  filter(Yr>= 2012 & Yr<= 2018) %>% #filter for study period
+  select(Yr, daynum, HE_ratio_TotP_mgL) #select only the 
+write.csv(Me_P_ratio, file="Products/Figure10_data.csv")
+fig10<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
+               y=Me_P_ratio$daynum, #day of year as y axis
+               z=Me_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
-               color=Me_P_water$HE_ratio_TotP_mgL) #colors points by value
+               color=Me_P_ratio$HE_ratio_TotP_mgL) #colors points by value
 fig10<- fig10 %>%
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
          )
-ggsave("Products/Figure10_color.png")
+fig10
 ```
 
 # Figure 22: 3D plot of Chl-a across day number and year...
