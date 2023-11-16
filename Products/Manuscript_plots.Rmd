@@ -127,13 +127,17 @@ fig10
 # Figure 11. Optimized hot spot analysis of total P
 This figure was produced in ESRI ArcGIS Pro and saved as a jpeg file. 
 
-# Figure 22: 3D plot of Chl-a across day number and year...
+# Figure 12. Phosphorus export by subwatershed and year
+This figure was produced in Pandas and saved as a jpeg file.
+_______________________________________________________________________________
+
+# Figure 13. 
+
+# Figure 14. 3D plot of Chl-a across day number and year...
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
-
 Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE)
-
 Me_Chl<- Chl %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
          Chla_ugL= tri_chl_spec, #renames field to common name with units
@@ -162,26 +166,23 @@ Chla_interp<- Chla_interp %>%
          ) %>%
   filter(Yr>=2012 & Yr<=2018) #filter for study period
 
-fig22<- plot_ly(x=Chla_interp$Yr, 
+fig14<- plot_ly(x=Chla_interp$Yr, 
   y=Chla_interp$daynum, 
   z=Chla_interp$Chla_ugL, 
   type="scatter3d", mode="markers",
   color=Chla_interp$Chla_ugL)
-fig22<- fig22 %>%
+fig14<- fig14 %>%
   layout(scene=list(xaxis=list(title="Year"),
          yaxis=list(title="Day of Year"),
          zaxis=list(title="Chlorophyll-a (ug/L)")))
-fig22
+fig14
 ```
 
-
-# Figure 23: 3D plot of CD across day number and year...
+# Figure 15: 3D plot of CD across day number and year...
 ```{r}
 library(plotly) #needed for interactive 3D plot
 library(dplyr) #needed for defining data
-
 phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
-
 Me_cyanoRB<- phyto %>%
   mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
   filter(lakeid=="ME", #filter for Lake Mendota data
@@ -213,65 +214,14 @@ CD_interp<- CD_interp %>%
          ) %>%
   filter(Yr>=2012 & Yr<=2018) #filter for study period
 
-fig23<- plot_ly(x=CD_interp$Yr, 
+fig15<- plot_ly(x=CD_interp$Yr, 
   y=CD_interp$daynum, 
   z=CD_interp$CD_cellsmL, 
   type="scatter3d", mode="markers",
   color=CD_interp$CD_cellsmL)
-fig23<- fig23 %>%
+fig15<- fig15 %>%
   layout(scene=list(xaxis=list(title="Year"),
          yaxis=list(title="Day of Year"),
          zaxis=list(title="Cyanobacteria Density (cells/mL)")))
-fig23
-```
-
-
-
-
-# 3D plot of Chl-a against P_ext and P_int...
-
-```{r}
-library(plot3D) #needed for scatter3D plot
-Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
-scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
-  y=Me_all_interp$IntP_kgday_interp, 
-  z=(Me_all_interp$Chla_ugL_interp), bty="g", pch=20, cex=2, ticktype="detailed",
-  xlab="Total P external load (kg/day)", 
-  ylab="Total P internal load (kg/day)", 
-  zlab="Total Chl-a (ug/L)")
-```
-
-# 3D plot of Chl-a against P_ext and P_hypo:epi...
-
-```{r}
-library(plot3D) #needed for scatter3D plot
-Me_all_interp<- read.csv(file="Cleaned_data/Mendota_modeldata.csv")
-scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
-  y=Me_all_interp$HE_ratio_interp, 
-  z=Me_all_interp$Chla_ugL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
-  xlab="Total P external load (kg/day)", 
-  ylab="Total P Ratio Hypo: Epi", 
-  zlab="Total Chl-a (ug/L)")
-```
-
-d) plotting CD against P_ext and P_int...
-
-```{r}
-scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
-  y=Me_all_interp$IntP_kgday_interp, 
-  z=Me_all_interp$CD_cellsmL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
-  xlab="Total P external load (kg/day)", 
-  ylab="Total P internal load (kg/day)", 
-  zlab="Cyanobacteria density (cells/mL)")
-```
-
-e) plotting CD against P_ext and P_hypo:epi...
-
-```{r}
-scatter3D(x=Me_all_interp$ExtP_kgday_interp, 
-  y=Me_all_interp$HE_ratio_interp, 
-  z=Me_all_interp$CD_cellsmL_interp, bty="g", pch=20, cex=2, ticktype="detailed",
-  xlab="Total P external load (kg/day)", 
-  ylab="Total P Ratio Hypo: Epi", 
-  zlab="Cyanobacteria density (cells/mL)")
+fig15
 ```
