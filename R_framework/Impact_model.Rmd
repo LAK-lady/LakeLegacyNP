@@ -46,16 +46,14 @@ cor<- Me_all_interp %>% #select fields with responses, include columns with pred
   na.omit() #remove NAs
 
 M=cor(cor, method="pearson") #perform correlation using Kendall tau method
-file_path= "Products/Figure16_color.png"
-png(height=500, width=500, file=file_path, type="cairo")
+png(height=500, width=500, file="Products/Figure16_color.png", type="cairo")
 corrplot(M, #plot cor matrix
                   diag=FALSE, #remove diagonal that shows corr of vars with themselves
                   outline=TRUE, #add outline around shapes to see
                   sig.level=c(0.001, 0.01, 0.05), insig='blank', #add signif stars
                   addCoef.col='black', #add corr values in black
                   type='upper')#only show upper half of matrix
-  #recordPlot() #call in the recordPlot function to record plot
-
+dev.off()
 fig16
 ggsave(fig16, file="Products/Figure16_color.png")
 ```
