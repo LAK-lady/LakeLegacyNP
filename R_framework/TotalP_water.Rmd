@@ -183,15 +183,14 @@ fig10<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
                y=Me_P_ratio$daynum, #day of year as y axis
                z=Me_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
-               color=Me_P_ratio$HE_ratio_TotP_mgL) #colors points by value
-fig10<- fig10 %>%
+               color=Me_P_ratio$HE_ratio_TotP_mgL) %>% #colors points by value
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
-         )
-
-plotly::export(p=fig10, file="Products/Figure10_color.png")
+         ) 
+fig10
+#save_image(fig10, file="Products/Figure10_color.png")
 ```
 
 # Step 5. Save the new data file:

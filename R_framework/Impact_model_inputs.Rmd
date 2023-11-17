@@ -118,6 +118,8 @@ Missing values interpolated.
 checking for normality...
 
 ```{r}
+write.csv(Me_all_interp, file="Products/Figure13_data.csv")
+png(file="Products/Figure13.png", width=1000,height=500)
 layout(matrix(c(1,2, 3, 4, 5, 6, 7, 8, 9, 10), #make a matrix of plots
               2)) #2 rows and 4 columns
 hist(Me_all_interp$Chla_ugL_interp, breaks=25,#histograph of Chl-a
@@ -160,7 +162,7 @@ hist(log10(Me_all_interp$HE_ratio_interp), breaks=25,#histograph of log10(P_hypo
      main="log-transformed",
      xlab="P_hypo:P_epi") 
 #log-transform data more normal
-
+dev.off()
 par(mfrow=c(1,1))#returns graphing viewer to 1 plot per page
 ```
 
