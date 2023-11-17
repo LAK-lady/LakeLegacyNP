@@ -16,6 +16,7 @@ a) Loading dependent packages...
 ```{r}
 library(dplyr) #needed for reshaping/reformating data
 library(corrplot) #needed for correlation matrix plot
+library(ggplot2) #needed for plotting and saving plots
 ```
 
 b) Loading data...
@@ -41,16 +42,22 @@ cor<- Me_all_interp %>% #select fields with responses, include columns with pred
     CD_k7=CD_cellsmL_interp_k7,CD_cellsmL_interp_k7=NULL,
     Pext=ExtP_kgday_interp_k28, ExtP_kgday_interp_k28=NULL,
     Pint=IntP_kgday_interp_k28, IntP_kgday_interp_k28=NULL,
-    P_ratio28=HE_ratio_interp_k28,HE_ratio_interp_k28=NULL) %>%
+    P_ratio=HE_ratio_interp_k28,HE_ratio_interp_k28=NULL) %>%
   na.omit() #remove NAs
 
 M=cor(cor, method="pearson") #perform correlation using Kendall tau method
+file_path= "Products/Figure16_color.png"
+png(height=500, width=500, file=file_path, type="cairo")
 corrplot(M, #plot cor matrix
-         diag=FALSE, #remove diagonal that shows corr of vars with themselves
-         outline=TRUE, #add outline around shapes to see
-         sig.level=c(0.001, 0.01, 0.05), insig='blank', #add signif stars
-         addCoef.col='black', #add corr values in black
-         type='upper') #only show upper half of matrix
+                  diag=FALSE, #remove diagonal that shows corr of vars with themselves
+                  outline=TRUE, #add outline around shapes to see
+                  sig.level=c(0.001, 0.01, 0.05), insig='blank', #add signif stars
+                  addCoef.col='black', #add corr values in black
+                  type='upper')#only show upper half of matrix
+  #recordPlot() #call in the recordPlot function to record plot
+
+fig16
+ggsave(fig16, file="Products/Figure16_color.png")
 ```
 
 # Step 3. Perform regression:

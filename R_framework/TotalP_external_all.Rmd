@@ -83,12 +83,14 @@ extP_load_long<- extP_load_long %>%
   group_by(Yr, Source) %>% #for each year and each source
   summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
 
-ggplot(extP_load_long, aes(x=Yr, y=TotP_kgday, 
+write.csv(extP_load_long, file="Products/Figure8_data.csv") #saves data table
+fig8<- ggplot(extP_load_long, aes(x=Yr, y=TotP_kgday, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "black")) + #atm = grey, streams=black
   theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") 
+  labs(x="Year", y="Total P loading (kg/yr)")
+ggsave(fig8, file="Products/Figure8.png")
 ```
 
 Total P load by source for each year plotted.

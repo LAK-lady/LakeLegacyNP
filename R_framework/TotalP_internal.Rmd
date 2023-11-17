@@ -306,12 +306,14 @@ IntP_long<- IntP_long %>%
   group_by(Yr, Source) %>% #for each year and each source
   summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
 
-ggplot(subset(IntP_long, Yr<=2018), aes(x=Yr, y=TotP_kgday, 
+write.csv(IntP_long, file="Products/Figure7_data.csv") #save data as table
+fig7<- ggplot(subset(IntP_long), aes(x=Yr, y=TotP_kgday, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
   theme_classic(base_size=12) +
   labs(x="Year", y="Total P loading (kg/yr)") 
+ggsave(fig7, file="Products/Figure7.png")
 ```
 
 Total P load by source for each year plotted.

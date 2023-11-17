@@ -200,7 +200,8 @@ Inflows_long<- Inflows_long %>%
          Yr=as.integer(format(sampledate, format="%Y"))) %>% #add column with Yr
   filter(Yr>= 2012 & Yr <=2018)
 
-ggplot(data=Inflows_long, 
+write.csv(Inflows_long, file="Products/Figure9_data.csv")
+fig9<- ggplot(data=Inflows_long, 
        aes(x=daynum, 
            y=TotP_kgday)) +
   geom_line()+
@@ -214,6 +215,7 @@ ggplot(data=Inflows_long,
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+ggsave(fig9, file="Products/Figure9.png")
 ```
 
 Plotted Total P for day of year across the three inflows, for all years. 

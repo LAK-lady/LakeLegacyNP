@@ -13,6 +13,7 @@ Data was also converted to time series.
 # Step 1. Load dependent packages and data:
 
 a) loading the dependent packages...
+
 ```{r}
 library(ggplot2) #needed for plots
 library(ggbreak) #needed for plot scale breaks
@@ -22,6 +23,7 @@ library(dplyr) #needed for reshaping/reformaing data
 Packages loaded.
 
 b) loading the chlorophyll-a data...
+
 ```{r}
 Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
 ```
@@ -29,12 +31,18 @@ Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
 Chlorophyll-a data loaded. 
 
 c) loading the phytoplankton data...
+
 ```{r}
 phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
 ```
 
 Phytoplankton community data loaded. 
 
+d) loading the Secchi depth data...
+
+```{r}
+Secchi<- read.csv(file="Original_data/ntl31_v9_secchi.csv") #has Secchi depth data
+```
 
 # Step 2. Define and filter data:
 
@@ -50,8 +58,6 @@ Me_Chl<- Chl %>%
          depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
          rep=="1") %>% #remove QA analytic replicates
   filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
-  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
   select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
 ```
 
@@ -71,12 +77,21 @@ Me_cyanoRB<- phyto %>%
             CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
   filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
-  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
-  filter(daynum >=189 & daynum <=259) #filter for CyanoHAB season +- 7 days
+         daynum=as.numeric(format(sampledate, "%j")))  #adds field with day
 ```
 
 CRB and CD data defined and filtered.
+
+c) defining and filtering the Secchi depth data...
+
+```{r}
+Me_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"),#tells R to format field as Date
+         SD_m=secnview) %>% #adds units to field
+  filter(lakeid=="ME") %>% #filter for Lake Mendota data
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
+```
 
 # Step 3. View the data available:
 
@@ -95,19 +110,72 @@ Chl-a data plotted. Chl-a available from 2008 to 2012, note NAs in 2017.
 b) Plotting CRB and CD data available...
 
 ```{r}
-par(mfrow=c(1,2)) #returns graphing viewer to 2 plots per page
-plot(Me_cyanoRB$sampledate, Me_cyanoRB$relbiovol, #point plot x, y
-     type="b", #point and line plot
-     xlab="Date",
-     ylab="Cyanobacteria Relative Biovolume (as % total algal biovolume)") 
-plot(Me_cyanoRB$sampledate, Me_cyanoRB$CD_cellsmL, #point plot x, y
-     type="b", #point and line plot
-     xlab="Date",
-     ylab="Cyanobacteria Density (cells/mL)") #plots the new time series
-par(mfrow=c(1,1)) #returns graphing viewer to 1 plot per page
+a<- ggplot(data=Me_cyanoRB, aes(x=sampledate, y=relbiovol))+
+  geom_point() +  #point plot 
+  geom_line() + #lines between points
+  theme_classic(base_size=12)+
+  labs(x="Date", y="Cyanobacteria Relative Biovolume 
+       (as % total phytoplankton biovolume)")
+b<- ggplot(data=Me_cyanoRB, aes(x=sampledate, y=CD_cellsmL/1000))+
+  geom_point() +  #point plot 
+  geom_line() + #lines between points
+  theme_classic(base_size=12)+
+  labs(x="Date", y="Cyanobacteria Density (10^3 cells/mL)")
+a / b #plot a over plot b
 ```
 
 CRB and CD data plotted. 
+
+c) plotting Secchi depth (SD)...
+
+```{r}
+ggplot(data=Me_Secchi, aes(x=sampledate, y=SD_m)) + #plots Chl-a across date
+  geom_point() + #adds points at observations
+  geom_line() + #adds lines between 
+  theme_classic(base_size=12) +
+  scale_y_reverse() + #flips y axis to depth of lake
+  labs(x="Date", y="Secchi disk depth (m)")
+```
+
+Secchi depth plotted. Note, y-axis reversed as limnological plot.
+
+d) plotting Secchi depth and cyanobacteria relative biovolume to get cyanoHAB
+season...
+
+```{r}
+Me_Secchi_fig3<- Me_Secchi %>%
+  select(sampledate, SD_m) #select fields of interest
+Me_cyanoRB_fig3<- Me_cyanoRB %>%
+  select(sampledate, Yr, daynum, relbiovol) #selects fields of interest
+Figure3_data<- merge(Me_Secchi_fig3, Me_cyanoRB_fig3, by=c("sampledate"),
+                       all=TRUE) #merges data frames and keeps all records
+write.csv(Figure3_data, file="Products/Figure3_data.csv")
+a<- ggplot(data=Figure3_data, aes(x=daynum, y=SD_m)) + #plots SD across day
+  geom_point() + #plots observations as points
+  theme_classic(base_size=12) +
+  scale_y_reverse() +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", y="Secchi depth (m)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+b <- ggplot(data=Figure3_data, aes(x=daynum, y=relbiovol)) + #plots cyano RB across day
+  geom_point() + #plots observations as points
+  theme_classic(base_size=12) +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", 
+       y="Cyanobacteria relative biovolume 
+       (as % total phytoplankton biovolume)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+a / b #plot a over plot b
+ggsave("Products/Figure3_color.png") #saves plot to Products folder
+```
+
+Data plotted.
 
 # Step 4. Bin observations into same daynumber each year:
 
@@ -129,8 +197,10 @@ Defined expected observation frequency.
 b) binning Chl observed dates into expected dates...
 
 ```{r}
-Me_Chl <- Me_Chl  %>% 
-mutate(daynum_bin=
+Me_Chl <- Me_Chl  %>%
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
+  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  mutate(daynum_bin=
          ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
                 daynum_bins[1], #yes returns bin 1
                 ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
@@ -157,7 +227,9 @@ b) binning CD observed dates into expected dates...
 
 ```{r}
 Me_cyanoRB <- Me_cyanoRB  %>% 
-mutate(daynum_bin=
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
+  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  mutate(daynum_bin=
          ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
                 daynum_bins[1], #yes returns bin 1
                 ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
