@@ -38,5 +38,5 @@ Any original data that was reformatted, cleaned for quality control, or derived 
 a model is saved in the Cleaned_data folder. 
 
 ## 4. Products 
-Any products, including printouts (as html or pdf), tables, and figures, and code used 
+Any products, including printouts (as html or pdf), tables, and figures used 
 to generate products for the manuscript is saved in the Products folder.
