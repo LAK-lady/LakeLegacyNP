@@ -55,8 +55,6 @@ corrplot(M, #plot cor matrix
                   addCoef.col='black', #add corr values in black
                   type='upper')#only show upper half of matrix
 dev.off()
-fig16
-ggsave(fig16, file="Products/Figure16_color.png")
 ```
 
 # Step 3. Perform regression:
@@ -229,9 +227,6 @@ colnames(Model_output_Chla)<- c("2013", "2014", "2015", "2016", "2017", "2018")
 # renames columns with year for sum squares
 write.csv(Model_output_Chla, file="Cleaned_data/Impact_model_output_Chla.csv")
 write.csv(Model_output_Chla, file="Products/Figure5_data.csv")
-png(file="Products/Figure5_color.png")
-fig5<-ggplot(data=Model_output_Chla, aes(x=))
-
 ```
 
 Yearly source-attributed impact outputted.
@@ -297,7 +292,8 @@ Model_output_CD<- cbind(impact2013, impact2014, impact2015, impact2016,
                           impact2017, impact2018) #combines all tables together
 colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018")
 # renames columns with year for sum squares
-write.csv(Model_output_CD, file="Cleaned_data/Impact_model_output_Chla.csv")
+write.csv(Model_output_CD, file="Cleaned_data/Impact_model_output_CD.csv")
+write.csv(Model_output_CD, file="Products/Figure6_data.csv")
 ```
 
 Yearly source-attributed impact outputted.
