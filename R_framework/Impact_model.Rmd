@@ -223,7 +223,7 @@ Chla_impact2018<- data.frame(Chla_SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS
 Model_output_Chla<- cbind(Chla_impact2013, Chla_impact2014, Chla_impact2015, 
                           Chla_impact2016, Chla_impact2017, Chla_impact2018) #combines all tables together
 Model_output_Chla$Sum_Sq_part<- c("Seed stock", "External load", "Internal load", "Residual") #add column with predictor name
-colnames(Model_output_Chla)<- c("2013", "2014", "2015", "2016", "2017", "2018")
+colnames(Model_output_Chla)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part")
 # renames columns with year for sum squares
 write.csv(Model_output_Chla, file="Cleaned_data/Impact_model_output_Chla.csv")
 write.csv(Model_output_Chla, file="Products/Figure5_data.csv")
@@ -290,7 +290,8 @@ impact2018<- data.frame(SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 Model_output_CD<- cbind(impact2013, impact2014, impact2015, impact2016, 
                           impact2017, impact2018) #combines all tables together
-colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018")
+Model_output_CD$Sum_Sq_part<- c("Seed stock", "External load", "Internal load", "Residual") #add column with predictor name
+colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part")
 # renames columns with year for sum squares
 write.csv(Model_output_CD, file="Cleaned_data/Impact_model_output_CD.csv")
 write.csv(Model_output_CD, file="Products/Figure6_data.csv")
