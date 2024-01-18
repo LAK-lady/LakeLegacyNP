@@ -1,8 +1,8 @@
 # Overview
-The purpose of this site is to provide the code and data used to quantify the impact of the internal load (legacy P from lake sediments) on cyanHAB severity in a lake and map areas upstream of the lake with potential legacy P stores (hot spots for high P output per contributing area). 
+The purpose of this site is to provide the code and data used to quantify the impact of the internal load (legacy P load from lake sediments) on cyanHAB severity in a lake and map areas upstream of the lake with potential legacy P stores (hot spots for high P output per contributing area). 
 
 The code and data contained herein are provided as supplemental material associated with the following article: 
-Knose, L.A.; Cole, D.; Martin-Hernandez, E.; Vaneeckhaute, C.; Ruiz-Mercado, G.J.; Gonzalez, M.A.; Zavala, V.M. (in prep) "Framework for determining impact of legacy nutrients in lake sediments (the internal load) on cyanobacteria harmful algal blooms severity." _TBD_  
+Knose, L.A.; Cole, D.; Martin-Hernandez, E.; Vaneeckhaute, C.; Ruiz-Mercado, G.J.; Gonzalez, M.A.; Zavala, V.M. (in prep) "Framework for determining impact of legacy nutrient loading from lake sediments (the internal load) on cyanobacteria harmful algal blooms severity in freshwater lake." _TBD_  
 
 # Authorship
 This GitHub was generated and maintained by Dr. Lauren Knose, an ORISE Fellow with the U.S. Environmental Protection Agency Office of Research and Development. Dr. Knose is the author of the R code and programs. David Cole, PhD Student at the University of Wisconsin, is the author of the Python code and programs. When using or referencing information from this repository, please use the citation above.
