@@ -1,0 +1,339 @@
+---
+title: "TotalP_internal.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-08-25'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to calculate the internal legacy P loading for Lake
+Mendota, WI, from entrainment. Internal Legacy Total P Load (kg-day-1) = [P_t]* (Vol_epi_t - Vol_epi,t-1)/t.
+
+# Step 1. Load dependent packages and data needed:
+
+a) loading dependent packages...
+
+```{r}
+library(ggplot2) #needed for plots
+library(dplyr) #needed for reformating data
+library(zoo) #needed to linearly interpolate missing values
+library(tidyverse) #needed for crossing function
+library(reshape2) #needed to reshape data from wide to long
+```
+
+Packages loaded.
+
+b) loading dependent data...
+
+```{r}
+waterP<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) 
+# original water chemistry data file which has P concentrations
+EpiVol<- read.csv(file="Cleaned_data/EpiVolume.csv", header=TRUE)
+# output data file with change in epi volume calculations
+```
+
+# Step 2. Define and filter the data:
+
+a) defining and filtering the P concentration data...
+
+```{r}
+waterP2<- waterP %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as Date
+         TotP_mgL=totpuf_sloh, totpuf_sloh=NULL, #rename field with units and remove duplicate column
+         DisP_mgL=drp_sloh, drp_sloh=NULL, #rename field with units and remove duplicate column
+         Depth_m = as.integer(round(depth, 0)), depth=NULL, #round depth to nearest integer, rename field with units, remove duplicate column
+         daynum=as.integer(format(sampledate, "%j")), #add field with day 
+         Yr=as.integer(format(sampledate, "%Y"))) %>% #add field with year
+  filter(lakeid=="ME", #filter for Lake Mendota
+         rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
+  filter(!is.na(TotP_mgL)) %>% #remove NA values
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
+  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  select(sampledate, TotP_mgL, Depth_m, daynum, Yr) #select fields needed
+```
+
+P concentration data defined and filtered. 
+
+b) defining and filtering the change in epi volume data...
+
+```{r}
+EpiVol2<- EpiVol %>%
+  mutate(sampledate=as.Date(date, origin="1899-12-30"),#reformat date
+         daynum=as.integer(format(sampledate, "%j")),#add field with day
+         Yr=as.integer(format(sampledate, "%Y")), #add field with year
+         Depth_m=as.integer(round(Thermo_depth_m, 0)), Thermo_depth_m=NULL) %>% #round the depth to nearest integer, rename field with units, remove duplicate column
+  filter(Yr>=2012 & Yr<=2018) %>% #filter for study period
+  filter(daynum>=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  select(sampledate, Vol_epi_m3, Depth_m, Yr, daynum) #select fields needed  
+```
+
+Thermocline data filtered.
+
+# Step 3. View the data:
+
+a) plotting data available on total P concentration...
+
+```{r}
+ggplot(data=waterP2, #creates plot
+       aes(x=daynum, #sampled date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=TotP_mgL)) + #data points colored by temperature
+  geom_point() + #plot point graph
+  facet_wrap(~Yr) + #make separate graph for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = hot temp
+                        low=scales::muted("blue"), #blue = cold temp
+                        name="Total P (ug/L)") + #name legend
+  geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Date", y="Depth (m)", #add axis labels
+  caption="Horizontal dashed line indicates epilimnion maximum used for sampling at 8 m.") 
+```
+
+Total P concentration data plotted. Note, P concentration at depth only available
+monthly, but P concentration in epilimnion available biweekly. Missing observations
+will need to be interpolated.
+
+b) plotting data available on thermocline depth...
+
+```{r}
+ggplot(data=EpiVol2, #create plot
+       aes(x=daynum, #sampled date as x-axis
+           y=Vol_epi_m3)) + #depth as y-axis
+  geom_point() + #plot point graph
+  geom_line() + #add lines beween points
+  facet_wrap(~Yr) + #make separate graph for each year
+  geom_hline(yintercept=0, lty="dashed") + #add in horizontal line for zero change
+  theme_classic() +
+  labs(x="Date", y="Change in Epilimnion Volume (m^3)", #add axis labels 
+       caption="Horizontal dashed line indicates zero net change.")
+```
+
+Change in epilimnion volume plotted. 
+
+# Step 4. Interpolate missing P concentrations across depth:
+
+a) creating a function that will interpolate across depth for each sample date...
+
+```{r}
+estimate_TotP_by_date <- function(target_date, target_depth) { #write function that
+  data_for_date <- waterP2 %>% #creates a new data frame for a single date
+    filter(sampledate == target_date) %>% #filters for specific date
+    arrange(Depth_m) #and arranges depths min to max
+  approx(data_for_date$Depth_m, #linear regression interpolation of
+         data_for_date$TotP_mgL, #y values
+         xout = target_depth)$y #from depth min to max
+}
+```
+
+Function created.
+
+b) filtering out any dates that have < 2 values (at least 2 values needed for 
+interpolation)...
+
+```{r}
+waterP2<- waterP2 %>%
+  group_by(sampledate) %>% #for each sampledate
+  filter(!n()<2) %>% #remove dates with less than 2 observations
+  ungroup() #ungroup table
+```
+
+Dates with not enough data removed. 
+
+c) interpolating P concentrations across depth for each sample date...
+```{r}
+TotP_interp_depth <- crossing( #creates a tibble that 
+  tibble(date = unique(waterP2$sampledate)), #has same dates as those in frame
+  # depths can now be any value
+  tibble(Depth_m = seq(0, 25, #define depth min and max
+                       length.out = 26)) #set the number of interpolated values
+) %>%
+  group_by(date) %>%
+  mutate(TotP_mgL = estimate_TotP_by_date(date[1], Depth_m)) %>%
+  ungroup()
+```
+
+Data interpolated.
+
+d) viewing interpolated data...
+```{r}
+ggplot(data=TotP_interp_depth, #create limno plot with depth inverse on y-axis
+       aes(x=as.integer(format(date, "%j")), #sample date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(format(date, "%Y"))) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Total P (ug/L)") + 
+  geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Date", y="Depth (m)", #add axis labels
+  caption="Horizontal dashed line indicates epilimnion maximum used for sampling at 8 m.") 
+```
+
+Total P interpolated across depth for each sample date.
+
+# Step 5. Bin P observations into same day number each year as Epi Vol:
+
+a) defining expected observation frequencies...
+```{r}
+Yr<- seq(from=2012, #define year start of study period
+             to=2018, #define year end of study period
+             by=1) #creates a sequence every 1 year
+Yr #prints the expected years of data
+daynum_bins<- seq(from=196, #define date start of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
+                  by=14) #creates a sequence every 14 days 
+daynum_bins #prints the expected observation dates of data
+```
+
+Defined expected observation frequency.
+
+b) binning observed dates into expected dates...
+
+```{r}
+TotP_interp_depth <- TotP_interp_depth %>%
+  mutate(daynum=as.numeric(format(date, "%j")), #add field with day num
+         Yr=as.numeric(format(date, "%Y"))) #add field with yr
+
+TotP_interp_depth <- TotP_interp_depth  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>=(daynum_bins[3]-7)&daynum<(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>=(daynum_bins[4]-7)&daynum<(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+```
+
+Observed dates assigned into closest expected dates.  
+
+# Step 6. Assign P concentration to thermocline depth for each day:
+
+a) joining the two data frames by key fields...
+
+```{r}
+IntP<- merge(EpiVol2, #joins x data frame
+             TotP_interp_depth, #joins y data frame
+             by.x=c('Yr', 'daynum', 'Depth_m'), #using these key fields in x
+             by.y=c('Yr', 'daynum_bin', 'Depth_m'), #using these key fields in y
+             all.x=TRUE) #keep all records in x
+```
+
+Two data frames joined.
+
+b) interpolating missing P concentration data...
+
+```{r}
+IntP$TotP_mgL<- na.approx(IntP$TotP_mgL) #interpolates NAs
+```
+
+P concentration data interpolated.
+
+c) calculating the internal legacy P loading by source (entrainment vs sediments
+adjacent to epilimnion), and total internal P loading.
+
+```{r}
+t<- 14 #length between observations in days
+mgL_mgm3<- 1000/1 #conversion factor from mg/L to mg/m^3
+mg_kg<- 1/1000000 #conversion factor from mg to kg
+A_unstrat<- 13980000 #unstratified lake surface area, where sediments are 
+# directly adjacent to epilimnion in m^2
+Sed_P<- 2.4 # mg P/m2-day (average based on previous study by Stauffer 1987 who 
+# determined the average sediment release of P from sediments in contact with 
+#the epilimnion in Lake Mendota (original range was 1.2 to 3.5 mg P /m2-day), measured by sediment cores.
+IntP<- IntP %>%
+  mutate(Ent_TotP_kgday= (TotP_mgL*mgL_mgm3*mg_kg)*Vol_epi_m3/t, #calculates 
+        #internal P load from entrainment (stratified area)
+        Sed_TotP_kgday=(Sed_P*A_unstrat*mg_kg), #calculates internal P loading
+        #from sediments adjacent to epilimnion (unstratified area)
+        Int_TotP_kgday= Sed_TotP_kgday+Ent_TotP_kgday) #calculates total internal
+#legacy P loading
+```
+
+Internal legacy P load by source and total calculated.
+
+# Step 7. Summarize and view the data:
+
+a) summarizing average Ent P loading during the CyanoHAB season...
+```{r}
+Int_yr<- IntP %>%
+  group_by(Yr) %>%
+  summarize(mean_entrain=mean(Ent_TotP_kgday, na.rm=TRUE),
+            se_entrain=(sd(Ent_TotP_kgday, na.rm=TRUE)/sqrt(length(Ent_TotP_kgday))),
+            min_entrain=min(Ent_TotP_kgday, na.rm=TRUE),
+            max_entrain=max(Ent_TotP_kgday, na.rm=TRUE),
+            mean_total=mean(Int_TotP_kgday, na.rm=TRUE),
+            se_total=(sd(Int_TotP_kgday, na.rm=TRUE)/sqrt(length(Int_TotP_kgday))),
+            min_total=min(Int_TotP_kgday, na.rm=TRUE),
+            max_total=max(Int_TotP_kgday, na.rm=TRUE)
+            ) #calculate annual total P load
+Int_yr
+```
+
+The average annual internal legacy total P load was `r mean(Int_yr$mean_total)` +- 
+`r (sd(Int_yr$se_total)/sqrt(length(Int_yr$se_total)))` kg/yr. 
+
+b) plot total P load for CyanoHAB season by source for each year...
+```{r}
+IntP_long<- melt(IntP, #the table you want to reshape wide to long
+               id.vars=c("sampledate"), #the column to use as unique id
+               measure.vars=c("Ent_TotP_kgday","Sed_TotP_kgday"), 
+               #the columns where values will be taken
+               variable.name="Source", #label the source of P loading
+               value.name="TotP_kgday" #label the value with units
+               )
+IntP_long$Source<-as.character(IntP_long$Source) #tell R character data held
+IntP_long$Source[IntP_long$Source=="Ent_TotP_kgday"] <- "entrainment"
+IntP_long$Source[IntP_long$Source=="Sed_TotP_kgday"] <- "adjacent sediments"
+
+IntP_long<- IntP_long %>%
+  mutate(Yr=format(sampledate, "%Y") #add year back in data frame
+         ) %>%
+  group_by(Yr, Source) %>% #for each year and each source
+  summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
+
+write.csv(IntP_long, file="Products/Figure7_data.csv") #save data as table
+fig7<- ggplot(subset(IntP_long), aes(x=Yr, y=TotP_kgday, 
+                             fill=Source)) + #separate sources by fill color
+  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
+  scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
+  theme_classic(base_size=12) +
+  labs(x="Year", y="Total P loading (kg/yr)") 
+ggsave(fig7, file="Products/Figure7.png")
+```
+
+Total P load by source for each year plotted.
+
+b) calculate average daily total P load from entrainment for CyanoHAB season...
+
+```{r}
+IntP_dayavg<- IntP %>%
+  summarize(mean_ent=mean(Ent_TotP_kgday, na.rm=TRUE), #calculate mean
+            se_ent=(sd(Ent_TotP_kgday, na.rm=TRUE)/sqrt(length(Ent_TotP_kgday))),
+            min_ent=min(Ent_TotP_kgday, na.rm=TRUE),
+            max_ent=max(Ent_TotP_kgday, na.rm=TRUE)
+            )
+IntP_dayavg
+```
+
+Average daily P load from entrainment calculated.
+
+# Step 9. Save the data as a new data file:
+
+```{r}
+write.csv(IntP, file="Cleaned_data/TotalP_allint.csv")
+```

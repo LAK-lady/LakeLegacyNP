@@ -1,0 +1,300 @@
+---
+title: "Impact_model.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2023-08-30'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to perform an impact analysis comparing the internal vs external P loading on changes in Chl-a and CyanoDensity.
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(dplyr) #needed for reshaping/reformating data
+library(corrplot) #needed for correlation matrix plot
+library(ggplot2) #needed for plotting and saving plots
+```
+
+b) Loading data...
+
+```{r}
+Me_all_interp<- read.csv(file="Cleaned_data/Impact_model_input_data.csv")
+```
+
+# Step 2. Check whether variables are correlated:
+
+```{r}
+cor<- Me_all_interp %>% #select fields with responses, include columns with predictors
+  select(Chla_ugL_interp, CD_cellsmL_interp, #Chla and CD
+         Chla_ugL_interp_k7,CD_cellsmL_interp_k7, #Chla_t-k and CD_t-k
+         ExtP_kgday_interp_k28, #P_ext,t-k
+         IntP_kgday_interp_k28, #P_int,t-k
+         HE_ratio_interp_k28 #P_hypo:P_epi, t-k
+         ) %>%
+  mutate(#shorten names and remove duplicate fields
+    CD=CD_cellsmL_interp, CD_cellsmL_interp=NULL,
+    Chla=Chla_ugL_interp,Chla_ugL_interp=NULL,
+    Chla_k7=Chla_ugL_interp_k7, Chla_ugL_interp_k7=NULL,
+    CD_k7=CD_cellsmL_interp_k7,CD_cellsmL_interp_k7=NULL,
+    Pext=ExtP_kgday_interp_k28, ExtP_kgday_interp_k28=NULL,
+    Pint=IntP_kgday_interp_k28, IntP_kgday_interp_k28=NULL,
+    P_ratio=HE_ratio_interp_k28,HE_ratio_interp_k28=NULL) %>%
+  na.omit() #remove NAs
+
+M=cor(cor, method="pearson") #perform correlation using Kendall tau method
+write.csv(M, file="Products/Figure16_data.csv") #save figure data as table
+png(height=500, width=500, file="Products/Figure16_color.png", type="cairo")
+corrplot(M, #plot cor matrix
+                  diag=FALSE, #remove diagonal that shows corr of vars with themselves
+                  outline=TRUE, #add outline around shapes to see
+                  sig.level=c(0.001, 0.01, 0.05), insig='blank', #add signif stars
+                  addCoef.col='black', #add corr values in black
+                  type='upper')#only show upper half of matrix
+dev.off()
+```
+
+# Step 3. Perform regression:
+
+a) Running first model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + error
+
+```{r}
+regka_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chl-a_t-k
+                log10(ExtP_kgday_interp_k28), #P_ext,t-k
+              data=Me_all_interp) #data frame
+summary(regka_Chla)#prints the glm output
+aov(regka_Chla)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure17.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig17<-plot(regka_Chla) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+b) Running second model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + P_int,t-k + error
+
+```{r}
+regkb_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=Me_all_interp) #data frame
+summary(regkb_Chla)#prints the glm output
+aov(regkb_Chla)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure18.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig18<-plot(regkb_Chla) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+c) Running third model for Chl-a...
+Model: log10(Chla_t) ~ log10(Chla_t-7) + log10(P_ext,t-k) + log10(P_hypo:P_epiP,t-k) + error
+
+```{r}
+regkc_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+               log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                log10(HE_ratio_interp_k28), #P_hypo:P_epiP,t-k
+              data=Me_all_interp) #data frame
+summary(regkc_Chla)#prints the glm output
+aov(regkc_Chla)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure19.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig19<-plot(regkc_Chla) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+d) Running first model for CD...
+Model: log10(CD_t) ~ log10(CD_t-k) + log10(P_ext,t-k) + error
+
+```{r}
+regka_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28), #P_ext,t-k
+              data=Me_all_interp) #data frame
+summary(regka_CD)#prints the glm output
+aov(regka_CD)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure20.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig20<-plot(regka_CD) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+e) Running second model for CD...
+Model: log10(CD_t) ~ log10(CD_t-k) + log10(P_ext,t-k) + P_int,t-k + error
+
+```{r}
+regkb_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=Me_all_interp) #data frame
+summary(regkb_CD)#prints the glm output
+aov(regkb_CD)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure21.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig21<-plot(regkb_CD) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+f) Running third model for CD...
+Model: CD_t ~ CD_t-7 + P_ext,t-k + P_hypo:P_epiP,t-k + error
+
+```{r}
+regkc_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                log10(HE_ratio_interp_k28), #P_hypo:P_epiP,t-k
+              data=Me_all_interp) #data frame
+summary(regkc_CD)#prints the glm output
+aov(regkc_CD)#prints the sum of squares for the regression and residuals
+png(file="Products/Figure22.png", width=750, height=500) #open png file
+layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
+fig22<-plot(regkc_CD) #creates plot
+dev.off() #closes the file
+par(mfrow=c(1,1))
+```
+
+Pick the model with the lowest AIC, Residual standard error, and each term is significant (t-score p-value < 0.05) is the best model.
+
+# Step 4. Using the best model, calculate the variance for each term for each 
+year:
+
+a) calculating source-attributed impact for Chla...
+```{r}
+YRregk_Chla_2013<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2013)) #subset data by year
+Chla_SS_2013<- summary(YRregk_Chla_2013)#prints the sum of squares for the regression 
+Chla_impact2013<- data.frame(Chla_SS_2013[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_Chla_2014<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2014)) #subset data by year
+Chla_SS_2014<- summary(YRregk_Chla_2014)#prints the sum of squares for the regression 
+Chla_impact2014<- data.frame(Chla_SS_2014[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_Chla_2015<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2015)) #subset data by year
+Chla_SS_2015<- summary(YRregk_Chla_2015)#prints the sum of squares for the regression 
+Chla_impact2015<- data.frame(Chla_SS_2015[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_Chla_2016<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2016)) #subset data by year
+Chla_SS_2016<- summary(YRregk_Chla_2016)#prints the sum of squares for the regression 
+Chla_impact2016<- data.frame(Chla_SS_2016[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_Chla_2017<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2017)) #subset data by year
+Chla_SS_2017<- summary(YRregk_Chla_2017)#prints the sum of squares for the regression 
+Chla_impact2017<- data.frame(Chla_SS_2017[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_Chla_2018<- aov(formula=log10(Chla_ugL_interp) ~ #Chla_t
+              log10(Chla_ugL_interp_k7) + #Chla_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2018)) #subset data by year
+Chla_SS_2018<- summary(YRregk_Chla_2018)#prints the sum of squares for the regression 
+Chla_impact2018<- data.frame(Chla_SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+Model_output_Chla<- cbind(Chla_impact2013, Chla_impact2014, Chla_impact2015, 
+                          Chla_impact2016, Chla_impact2017, Chla_impact2018) #combines all tables together
+Model_output_Chla$Sum_Sq_part<- c("Seed stock", "External load", "Internal load", "Residual") #add column with predictor name
+colnames(Model_output_Chla)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part")
+# renames columns with year for sum squares
+write.csv(Model_output_Chla, file="Cleaned_data/Impact_model_output_Chla.csv")
+write.csv(Model_output_Chla, file="Products/Figure5_data.csv")
+```
+
+Yearly source-attributed impact outputted.
+
+b) calculating source-attributed impact for CD...
+
+```{r}
+YRregk_CD_2013<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2013) #subset data by year
+            )
+SS_2013<- summary(YRregk_CD_2013)#prints the sum of squares for the regression 
+impact2013<- data.frame(SS_2013[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_CD_2014<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2014) #subset data by year
+            )
+SS_2014<- summary(YRregk_CD_2014)#prints the sum of squares for the regression 
+impact2014<- data.frame(SS_2014[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_CD_2015<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2015) #subset data by year
+            )
+SS_2015<- summary(YRregk_CD_2015)#prints the sum of squares for the regression 
+impact2015<- data.frame(SS_2015[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_CD_2016<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2016) #subset data by year
+            )
+SS_2016<- summary(YRregk_CD_2016)#prints the sum of squares for the regression 
+impact2016<- data.frame(SS_2016[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_CD_2017<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2017) #subset data by year
+            )
+SS_2017<- summary(YRregk_CD_2017)#prints the sum of squares for the regression 
+impact2017<- data.frame(SS_2017[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+YRregk_CD_2018<- aov(formula=log10(CD_cellsmL_interp) ~ #CD_t
+              log10(CD_cellsmL_interp_k7) + #CD_t-k
+                log10(ExtP_kgday_interp_k28) + #P_ext,t-k
+                IntP_kgday_interp_k28, #P_int,t-k
+              data=subset(Me_all_interp, Yr==2018) #subset data by year
+            )
+SS_2018<- summary(YRregk_CD_2018)#prints the sum of squares for the regression 
+impact2018<- data.frame(SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS as table
+
+Model_output_CD<- cbind(impact2013, impact2014, impact2015, impact2016, 
+                          impact2017, impact2018) #combines all tables together
+Model_output_CD$Sum_Sq_part<- c("Seed stock", "External load", "Internal load", "Residual") #add column with predictor name
+colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part")
+# renames columns with year for sum squares
+write.csv(Model_output_CD, file="Cleaned_data/Impact_model_output_CD.csv")
+write.csv(Model_output_CD, file="Products/Figure6_data.csv")
+```
+
+Yearly source-attributed impact outputted.
