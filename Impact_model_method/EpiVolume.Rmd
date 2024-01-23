@@ -47,7 +47,7 @@ watertemp2<- watertemp %>% #make new data frame
   filter(rep==1) %>% #filter for rep 1 (no analytical reps)
   filter(!is.na(watertemp_C)) %>% #remove NAs
   filter(Yr>=2012 & Yr <=2018) %>% #filter for the study years 
-  filter(daynum>= 189 & daynum <=261) %>% #filter for CyanoHAB season +- 6 days
+  filter(daynum>= 189 & daynum <=265) %>% #filter for CyanoHAB season +- 6 days
   select(sampledate, Depth_m, watertemp_C, daynum, Yr) #select vars needed
 ```
 
@@ -162,7 +162,7 @@ Yr<- seq(from=2012, #define year start of study period
              by=1) #creates a sequence every 1 year
 Yr #prints the expected years of data
 daynum_bins<- seq(from=196, #define date start of CyanoHAB season
-                  to=255, #define date end of CyanoHAB season
+                  to=258, #define date end of CyanoHAB season
                   by=14) #creates a sequence every 14 days 
 daynum_bins #prints the expected observation dates of data
 ```
