@@ -22,7 +22,7 @@ The impact model method is a series of sequential programs (represented with yel
   8. Model_inputs.Rmd - prepares the data as input for impact modeling (defines predictor and response variables)
   9. Impact_model.Rmd - performs the statistical modeling for impact analysis on cyanoHAB severity by source (external vs internal) and outputs the partitioned sum of squares for each predictor term 
 
-## 2. Mapping_model_framework
+## 2. Mapping_model_method
 Python language was used to mine and process the data, map potential legacy P stores in upstream sub-watersheds, and quantify total P load per contributing area across sub-watersheds. All programs written in Python language used in this project are provided in Python_framework folder. All programs used in this method are provided in the Mapping_model_method folder. All code is written in Python (.py or .ipynb). The specific order in which programs should be run to achieve the same results as shown in the manuscript is as follows:
   1. HydroGraph_functios.py - performs the network mapping of sub-watersheds upstream of the inflows to the lake
   2. watershed_analysis.ipynb - calculates the P export per contributing area for each of the upstream sub-watersheds
