@@ -18,6 +18,7 @@ a) Loading the dependent packages...
 library(dplyr) #needed for transforming data
 library(ggplot2) #needed for plotting
 library(plotly) #needed for interactive 3D plot
+library(orca) #needed to save 3D image
 ```
 
 Packages loaded.
@@ -43,9 +44,8 @@ ME_P<- data %>%
   select(sampledate, TotP_mgL, DisP_mgL, Depth_m) %>%
   filter(!is.na(TotP_mgL)) #remove records with NAs
 stem(ME_P$Depth_m) #plots the number of observations by depth (y-axis)
+sort(unique(data$depth)) #identify the depths of measurements
 ```
-
-Measurements were taken at the following depths: `r sort(unique(data$depth)) #identify the depths of measurements`.
 
 b) Filter and transform epilimnion P data...
 ```{r}
@@ -178,8 +178,8 @@ c) Plotting hypo: epi total P...
 Me_P_ratio <- Me_P_water %>%
   filter(Yr>= 2012 & Yr<= 2018) %>% #filter for study period
   select(Yr, daynum, HE_ratio_TotP_mgL) #select only the 
-write.csv(Me_P_ratio, file="Products/Figure10_data.csv")
-fig10<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
+write.csv(Me_P_ratio, file="Products/Figure6_data.csv")
+fig6<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
                y=Me_P_ratio$daynum, #day of year as y axis
                z=Me_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
@@ -189,9 +189,21 @@ fig10<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
          ) 
-fig10
-#save_image(fig10, file="Products/Figure10_color.png")
+fig6 #save image mannually
 ```
+
+d) calculating the annual average P hypo:epi...
+
+```{r}
+Me_P_ratio_annavg <- Me_P_ratio %>%
+  filter(Yr>= 2012 & Yr<= 2018, daynum >=196 & daynum <= 258) %>%
+  group_by(Yr) %>%
+  summarize(mean=mean(HE_ratio_TotP_mgL, na.rm=TRUE),
+            se=(sd(HE_ratio_TotP_mgL, na.rm=TRUE)/sqrt(length(HE_ratio_TotP_mgL))))
+Me_P_ratio_annavg
+```
+
+Annual averages calculated.
 
 # Step 5. Save the new data file:
 

@@ -49,7 +49,7 @@ waterP2<- waterP %>%
          rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
   filter(!is.na(TotP_mgL)) %>% #remove NA values
   filter(Yr>=2012 & Yr<=2018) %>% #filter for study years
-  filter(daynum >=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  filter(daynum >=189 & daynum <=265) %>% #filter for CyanoHAB season +- 7 days
   select(sampledate, TotP_mgL, Depth_m, daynum, Yr) #select fields needed
 ```
 
@@ -64,7 +64,7 @@ EpiVol2<- EpiVol %>%
          Yr=as.integer(format(sampledate, "%Y")), #add field with year
          Depth_m=as.integer(round(Thermo_depth_m, 0)), Thermo_depth_m=NULL) %>% #round the depth to nearest integer, rename field with units, remove duplicate column
   filter(Yr>=2012 & Yr<=2018) %>% #filter for study period
-  filter(daynum>=189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  filter(daynum>=189 & daynum <=265) %>% #filter for CyanoHAB season +- 7 days
   select(sampledate, Vol_epi_m3, Depth_m, Yr, daynum) #select fields needed  
 ```
 
@@ -92,8 +92,7 @@ ggplot(data=waterP2, #creates plot
 ```
 
 Total P concentration data plotted. Note, P concentration at depth only available
-monthly, but P concentration in epilimnion available biweekly. Missing observations
-will need to be interpolated.
+monthly, but P concentration in epilimnion available biweekly. Missing observations will need to be interpolated.
 
 b) plotting data available on thermocline depth...
 
@@ -185,7 +184,7 @@ Yr<- seq(from=2012, #define year start of study period
              by=1) #creates a sequence every 1 year
 Yr #prints the expected years of data
 daynum_bins<- seq(from=196, #define date start of CyanoHAB season
-                  to=252, #define date end of CyanoHAB season
+                  to=258, #define date end of CyanoHAB season
                   by=14) #creates a sequence every 14 days 
 daynum_bins #prints the expected observation dates of data
 ```
@@ -238,13 +237,15 @@ Two data frames joined.
 b) interpolating missing P concentration data...
 
 ```{r}
-IntP$TotP_mgL<- na.approx(IntP$TotP_mgL) #interpolates NAs
+IntP <- IntP %>% filter(row_number() <= n()-1) #remove last row
+IntP$TotP_mgL<- na.approx(IntP$TotP_mgL) #interpolates where NA
 ```
 
 P concentration data interpolated.
 
-c) calculating the internal legacy P loading by source (entrainment vs sediments
-adjacent to epilimnion), and total internal P loading.
+# Step 7. Calculate internal load:
+
+a) assigning conversion factors for units...
 
 ```{r}
 t<- 14 #length between observations in days
@@ -255,50 +256,126 @@ A_unstrat<- 13980000 #unstratified lake surface area, where sediments are
 Sed_P<- 2.4 # mg P/m2-day (average based on previous study by Stauffer 1987 who 
 # determined the average sediment release of P from sediments in contact with 
 #the epilimnion in Lake Mendota (original range was 1.2 to 3.5 mg P /m2-day), measured by sediment cores.
+```
+
+b) calculating the internal  P loading, stratified vs un-stratified zones and total internal P loading...
+
+```{r}
 IntP<- IntP %>%
-  mutate(Ent_TotP_kgday= (TotP_mgL*mgL_mgm3*mg_kg)*Vol_epi_m3/t, #calculates 
-        #internal P load from entrainment (stratified area)
-        Sed_TotP_kgday=(Sed_P*A_unstrat*mg_kg), #calculates internal P loading
-        #from sediments adjacent to epilimnion (unstratified area)
-        Int_TotP_kgday= Sed_TotP_kgday+Ent_TotP_kgday) #calculates total internal
+  mutate(Strat_TotP_kgday= (TotP_mgL*mgL_mgm3*mg_kg)*Vol_epi_m3/t, #calculates 
+        #internal P load from stratified area
+        Unstr_TotP_kgday=(Sed_P*A_unstrat*mg_kg), #calculates internal P loading
+        #from unstratified area
+        Int_TotP_kgday= Unstr_TotP_kgday+Strat_TotP_kgday) #calculates total internal
 #legacy P loading
+IntP2<- IntP %>%
+  select(Yr, daynum, Strat_TotP_kgday, Unstr_TotP_kgday, Int_TotP_kgday) #select variables needed
 ```
 
-Internal legacy P load by source and total calculated.
+Internal legacy P load by area and total calculated.
 
-# Step 7. Summarize and view the data:
+# Step 8. Interpolating data for daily internal P load using linear regression...
 
-a) summarizing average Ent P loading during the CyanoHAB season...
+a) creating new data frame with expected frequency (daily)...
+
 ```{r}
-Int_yr<- IntP %>%
-  group_by(Yr) %>%
-  summarize(mean_entrain=mean(Ent_TotP_kgday, na.rm=TRUE),
-            se_entrain=(sd(Ent_TotP_kgday, na.rm=TRUE)/sqrt(length(Ent_TotP_kgday))),
-            min_entrain=min(Ent_TotP_kgday, na.rm=TRUE),
-            max_entrain=max(Ent_TotP_kgday, na.rm=TRUE),
-            mean_total=mean(Int_TotP_kgday, na.rm=TRUE),
-            se_total=(sd(Int_TotP_kgday, na.rm=TRUE)/sqrt(length(Int_TotP_kgday))),
-            min_total=min(Int_TotP_kgday, na.rm=TRUE),
-            max_total=max(Int_TotP_kgday, na.rm=TRUE)
-            ) #calculate annual total P load
-Int_yr
+daynum_bins<- seq(from=min(IntP2$daynum), to=max(IntP2$daynum), by=1)
+Yr_bins<- seq(from=min(IntP2$Yr), to=max(IntP2$Yr), by=1)
+
+IntP_interp<- data.frame(# makes new data frame
+                      daynum_bin=rep(daynum_bins, times=length(Yr_bins)), #creates field with
+                      #expected observations (5/yr for 7 years)
+                      Yr_bin=rep(Yr_bins, each= length(daynum_bins)))  #creates field with expected yr
 ```
 
-The average annual internal legacy total P load was `r mean(Int_yr$mean_total)` +- 
-`r (sd(Int_yr$se_total)/sqrt(length(Int_yr$se_total)))` kg/yr. 
+Table created with expected observation frequency.
 
-b) plot total P load for CyanoHAB season by source for each year...
+b) merging the two data frames...
+
 ```{r}
-IntP_long<- melt(IntP, #the table you want to reshape wide to long
+IntP_interp2<- merge(IntP_interp, IntP2, #merge the two data frames
+                    by.x=c("Yr_bin","daynum_bin"), #assign key fields in x
+                    by.y=c("Yr", "daynum"), #assign key fields in y
+                    all.x = TRUE) #keep all records in x
+IntP_interp2<- IntP_interp2 %>%
+  mutate(sampledate=as.Date(paste(Yr_bin, daynum_bin, sep="/"), 
+                            format="%Y/%j", origin="1899-12-30")) #reformat date)
+```
+
+Data frames merged.
+
+c) interpolating missing values...
+
+```{r}
+IntP_interp2$Strat_TotP_kgday<- na.approx(IntP_interp2$Strat_TotP_kgday)
+IntP_interp2$Unstr_TotP_kgday<- na.approx(IntP_interp2$Unstr_TotP_kgday)
+IntP_interp2$Int_TotP_kgday<- na.approx(IntP_interp2$Int_TotP_kgday)
+```
+
+# Step 9. Save the data as a new data file:
+
+```{r}
+write.csv(IntP_interp2, file="Cleaned_data/TotalP_allint.csv")
+```
+
+# Step 10. Summarize and view the data:
+
+a) calculating average daily int P loading during the CyanoHAB season...
+
+```{r}
+IntP_dayavg<- IntP_interp2 %>%
+  summarize(mean=mean(Int_TotP_kgday, na.rm=TRUE), #calculate mean
+            se=(sd(Int_TotP_kgday, na.rm=TRUE)/sqrt(length(Int_TotP_kgday))),
+            min=min(Int_TotP_kgday, na.rm=TRUE),
+            max=max(Int_TotP_kgday, na.rm=TRUE)
+            )
+IntP_dayavg
+```
+
+Average daily int P load calculated.
+
+b) calculating average annual int P loading during the CyanoHAB season...
+
+```{r}
+IntP_yravg<- IntP_interp2 %>%
+  group_by(Yr_bin) %>%
+  summarize(sum=sum(Int_TotP_kgday)) #add total P load
+IntP_yravg
+mean(IntP_yravg$sum) # print average annual total P loading from other sources
+sd(IntP_yravg$sum)/sqrt(length(IntP_yravg$sum)) #print sd for avg
+```
+
+Average annual int P load calculated.
+
+c) calculating the average daily internal P load by source (unst vs strat)...
+
+```{r}
+IntP_dayavg_source<- IntP_interp2 %>%
+  summarize(mean_unstr=mean(Unstr_TotP_kgday, na.rm=TRUE), #calculate mean
+            se_unstr=(sd(Unstr_TotP_kgday, na.rm=TRUE)/sqrt(length(Unstr_TotP_kgday))),
+            min_unstr=min(Unstr_TotP_kgday, na.rm=TRUE),
+            max_unstr=max(Unstr_TotP_kgday, na.rm=TRUE),
+            mean_strat=mean(Strat_TotP_kgday, na.rm=TRUE), #calculate mean
+            se_strat=(sd(Strat_TotP_kgday, na.rm=TRUE)/sqrt(length(Strat_TotP_kgday))),
+            min_strat=min(Strat_TotP_kgday, na.rm=TRUE),
+            max_strat=max(Strat_TotP_kgday, na.rm=TRUE)
+            )
+IntP_dayavg_source
+```
+
+d) plot internal P load for CyanoHAB season by source for each year...
+
+```{r}
+IntP_long<- melt(IntP_interp2, #the table you want to reshape wide to long
                id.vars=c("sampledate"), #the column to use as unique id
-               measure.vars=c("Ent_TotP_kgday","Sed_TotP_kgday"), 
+               measure.vars=c("Strat_TotP_kgday","Unstr_TotP_kgday"), 
                #the columns where values will be taken
                variable.name="Source", #label the source of P loading
                value.name="TotP_kgday" #label the value with units
                )
 IntP_long$Source<-as.character(IntP_long$Source) #tell R character data held
-IntP_long$Source[IntP_long$Source=="Ent_TotP_kgday"] <- "entrainment"
-IntP_long$Source[IntP_long$Source=="Sed_TotP_kgday"] <- "adjacent sediments"
+IntP_long$Source[IntP_long$Source=="Strat_TotP_kgday"] <- "stratified zone"
+IntP_long$Source[IntP_long$Source=="Unstr_TotP_kgday"] <- "unstratified zone"
 
 IntP_long<- IntP_long %>%
   mutate(Yr=format(sampledate, "%Y") #add year back in data frame
@@ -306,34 +383,16 @@ IntP_long<- IntP_long %>%
   group_by(Yr, Source) %>% #for each year and each source
   summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
 
-write.csv(IntP_long, file="Products/Figure7_data.csv") #save data as table
-fig7<- ggplot(subset(IntP_long), aes(x=Yr, y=TotP_kgday, 
+write.csv(IntP_long, file="Products/Figure9a_data.csv") #save data as table
+fig9a<- ggplot(subset(IntP_long), aes(x=Yr, y=TotP_kgday, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
   theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") 
-ggsave(fig7, file="Products/Figure7.png")
+  labs(x="Year", y="Total P loading (kg/yr)") +
+  ggtitle("a")
+fig9a #print the plot
+ggsave(fig9a, file="Products/Figure9a.png")
 ```
 
 Total P load by source for each year plotted.
-
-b) calculate average daily total P load from entrainment for CyanoHAB season...
-
-```{r}
-IntP_dayavg<- IntP %>%
-  summarize(mean_ent=mean(Ent_TotP_kgday, na.rm=TRUE), #calculate mean
-            se_ent=(sd(Ent_TotP_kgday, na.rm=TRUE)/sqrt(length(Ent_TotP_kgday))),
-            min_ent=min(Ent_TotP_kgday, na.rm=TRUE),
-            max_ent=max(Ent_TotP_kgday, na.rm=TRUE)
-            )
-IntP_dayavg
-```
-
-Average daily P load from entrainment calculated.
-
-# Step 9. Save the data as a new data file:
-
-```{r}
-write.csv(IntP, file="Cleaned_data/TotalP_allint.csv")
-```

@@ -15,6 +15,9 @@ The purpose of this program is to prepare data for input into models.
 a) Loading dependent packages...
 ```{r}
 library(zoo) #needed to interpolate NA values (na.approx function)
+library(ggplot2) #needed for plots
+library(ggbreak) #needed for plot scale breaks
+library(dplyr) #needed for reshaping/reformating data
 ```
 
 b) Loading data...
@@ -27,9 +30,9 @@ Me_intLoad<- read.csv(file="Cleaned_data/TotalP_allint.csv")
 Me_hypoepiRatio<- read.csv(file="Cleaned_data/TotalP_water.csv")
 ```
 
-# Step 2. Define and merge the data the data: 
+# Step 2. Clean the data: 
 
-a) defining data...
+a) defining and filtering the data...
 
 ```{r}
 Me_algae<- Me_algae %>%
@@ -38,127 +41,176 @@ Me_algae<- Me_algae %>%
 # failed QC check and was set as zero by data originators. 
 # Need to add 0.01 to zeros if log-transforming. 
 Me_algae['Chla_ugL'][Me_algae['Chla_ugL']==0] <- 0.01 #replace the 0's in 2017 with 0.01
+
 Me_extLoad<- Me_extLoad %>%
-  mutate(ExtP_kgday=total) %>% #rename field with units
-  select(Yr, daynum, ExtP_kgday) #select data needed
+  mutate(sampledate=as.Date(sampledate, format="%Y-%m-%d", origin="1899-12-30"),
+         Yr=format(sampledate, "%Y"),#reformat date to year
+         daynum=format(sampledate, "%j")) %>% #reformat date to day
+  select(!c(sampledate)) #remove excess field
+
 Me_intLoad <- Me_intLoad %>%
-  select(Yr, daynum, Int_TotP_kgday) #select data needed
+  select(!c(sampledate)) #remove excess field
+
 Me_hypoepiRatio<- Me_hypoepiRatio %>%
   mutate(HE_ratio=HE_ratio_TotP_mgL) %>% #rename field
+  filter(daynum>= 196 & daynum <=258, Yr>=2012 & Yr<= 2018) %>% #study period
   select(Yr, daynum, HE_ratio) #select data needed
 ```
 
-Data defined.
+Data defined and filtered.
 
 b) merging data....
 Note, you can only merge two files at one time.
 
 ```{r}
-Me_all<- merge(Me_algae, Me_extLoad, 
-               by.x=c("Yr", "daynum_bin"), #key fields in x data frame
+Me_load<- merge(Me_extLoad, Me_intLoad,
+               by.x=c("Yr", "daynum"), #key fields in x data frame
+               by.y=c("Yr_bin", "daynum_bin"), #key fields in y data frame
+               all.x=TRUE) #only keep records in x data frame
+Me_load<- merge(Me_load, Me_hypoepiRatio, 
+               by.x=c("Yr", "daynum"), #key fields in x data frame
                by.y=c("Yr", "daynum"), #key fields in y data frame
                all.x=TRUE) #only keep records in x data frame
-Me_all<- merge(Me_all, Me_hypoepiRatio, 
-               by.x=c("Yr", "daynum_bin"), #key fields in x data frame
-               by.y=c("Yr", "daynum"), #key fields in y data frame
-               all.x=TRUE) #only keep records in x data frame
-Me_all<- merge(Me_all, Me_intLoad,
-               by.x=c("Yr", "daynum_bin"), #key fields in x data frame
-               by.y=c("Yr", "daynum"), #key fields in y data frame
+Me_all<- merge(Me_load, Me_algae,
+               by.x=c("Yr", "daynum"), #key fields in x data frame
+               by.y=c("Yr", "daynum_bin"), #key fields in y data frame
                all.x=TRUE) #only keep records in x data frame
 ```
 
 Data frames merged.
 
-# Step 3. Interpolate weekly data:
+c) removing NAs...
 
-a) building a data frame with weekly observations...
 ```{r}
-Yr<- seq(from=2012, #define year start of study period
-             to=2018, #define year end of study period
-             by=1) #creates a sequence every 1 year
-Yr #prints the expected years of data
-daynum_bins<- seq(from=196, #define date start of CyanoHAB season
-                  to=252, #define date end of CyanoHAB season
-                  by=7) #creates a sequence every 14 days 
-daynum_bins #prints the expected observation dates of data
-Me_all_interp<- data.frame(Yr=rep(Yr, each=9), daynum_bin=rep(daynum_bins, times=7)) #create data frame with expected year and day number
+Me_all<- na.locf(Me_all, fromLast=FALSE) #fill NA values with the most recent non-NA value, because the last few days are NA for int load and phyto data. You can't approximate, because the next value is following year.
 ```
 
-Data frame with weekly observations created.
+NAs removed.
 
-b) merging the observations with expected...
+# Step 3. Summarizing and viewing the data:
+
+a) plotting internal versus external load...
 
 ```{r}
-Me_all_interp<- merge(Me_all_interp, #merge x data frame
-                      Me_all, #with y data frame
-                      by=c("Yr","daynum_bin"), #key fields
-                      all.x=TRUE) #keep all rows in x data frame
+Me_load_longA<- Me_all %>%
+  select(Yr, daynum, Pext_kgday, Int_TotP_kgday)
+Me_load_longA<- melt(Me_load_longA, #the table you want to reshape wide to long
+               id.vars=c("Yr","daynum"), #the column to use as unique id
+               measure.vars=c("Pext_kgday","Int_TotP_kgday"), 
+               #the columns where values will be taken
+               variable.name="Source", #label the source of P loading
+               value.name="TotP_kgday" #label the value with units
+               )
+Me_load_longA$Source<-as.character(Me_load_longA$Source) #tell R character data held
+Me_load_longA$Source[Me_load_longA$Source=="Pext_kgday"] <- "external load"
+Me_load_longA$Source[Me_load_longA$Source=="Int_TotP_kgday"] <- "internal load"
+
+Me_load_longA<- Me_load_longA %>%
+  group_by(Yr, Source) %>% #for each year and each source
+  summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
+
+write.csv(Me_load_longA, file="Products/Figure5a_data.csv") #save data as table
+fig5a<- ggplot(subset(Me_load_longA), aes(x=Yr, y=TotP_kgday, 
+                             fill=Source)) + #separate sources by fill color
+  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
+  scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
+  theme_classic(base_size=12) +
+  labs(x="Year", y="Total P loading (kg/yr)") +
+  ggtitle("a) Pext with Pout")
+fig5a #print the plot
+
+Me_load_longB<- Me_all %>%
+  select(Yr, daynum, Pext_kgday_noother, Int_TotP_kgday)
+Me_load_longB<- melt(Me_load_longB, #the table you want to reshape wide to long
+               id.vars=c("Yr","daynum"), #the column to use as unique id
+               measure.vars=c("Pext_kgday_noother","Int_TotP_kgday"), 
+               #the columns where values will be taken
+               variable.name="Source", #label the source of P loading
+               value.name="TotP_kgday" #label the value with units
+               )
+Me_load_longB$Source<-as.character(Me_load_longB$Source) #tell R character data held
+Me_load_longB$Source[Me_load_longB$Source=="Pext_kgday_noother"] <- "external load"
+Me_load_longB$Source[Me_load_longB$Source=="Int_TotP_kgday"] <- "internal load"
+
+Me_load_longB<- Me_load_longB %>%
+  group_by(Yr, Source) %>% #for each year and each source
+  summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
+
+write.csv(Me_load_longB, file="Products/Figure5b_data.csv") #save data as table
+fig5b<- ggplot(subset(Me_load_longB), aes(x=Yr, y=TotP_kgday, 
+                             fill=Source)) + #separate sources by fill color
+  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
+  scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
+  theme_classic(base_size=12) +
+  labs(x="Year", y="Total P loading (kg/yr)") +
+  ggtitle("b) Pext without Pout")
+fig5b #print the plot
+
+fig5<- fig5a / fig5b # make plot with a over b
+fig5 #print plot
+ggsave(fig5, file="Products/Figure5.png")
 ```
 
-Data merged.
+P loads by source graphed.
 
-c) interpolating missing values...
+b) comparing the average annual P load between Pint and Pstreams...
 
 ```{r}
-Me_all_interp<- Me_all_interp %>%
+Strat_Stream<- Me_all %>%
   group_by(Yr) %>%
-  mutate(Chla_ugL_interp=na.approx(Chla_ugL, na.rm=FALSE),
-         CD_cellsmL_interp=na.approx(CD_cellsmL, na.rm=FALSE),
-         ExtP_kgday_interp=na.approx(ExtP_kgday, na.rm=FALSE),
-         HE_ratio_interp=na.approx(HE_ratio, na.rm=FALSE),
-         IntP_kgday_interp=na.approx(Int_TotP_kgday, na.rm=FALSE)) %>%
-  ungroup()
+  summarize(Pstreams_kgyr=sum(Pstreams_kgday),
+            Int_TotP_kgday=sum(Int_TotP_kgday))
+mean(Strat_Stream$Int_TotP_kgday/Strat_Stream$Pstreams_kgyr*100)
 ```
 
-Missing values interpolated.
+Comparison calculated.
 
 # Step 4. Describe data:
 
 checking for normality...
 
 ```{r}
-write.csv(Me_all_interp, file="Products/Figure13_data.csv")
-png(file="Products/Figure13.png", width=1000,height=500)
+write.csv(Me_all, file="Products/SI_figures/Figure8_data.csv")
+png(file="Products/SI_figures/Figure8.png", width=1000,height=500)
 layout(matrix(c(1,2, 3, 4, 5, 6, 7, 8, 9, 10), #make a matrix of plots
               2)) #2 rows and 4 columns
-hist(Me_all_interp$Chla_ugL_interp, breaks=25,#histograph of Chl-a
+hist(Me_all$Chla_ugL, breaks=25,#histograph of Chl-a
      main="non-transformed",
      xlab="Chl-a (ug/L)") 
 #data right skewed
-hist(log10(Me_all_interp$Chla_ugL_interp), breaks=25,#histograph of log10(Chl-a)
+hist(log10(Me_all$Chla_ugL), breaks=25,#histograph of log10(Chl-a)
      main="log-transformed",
      xlab="Chl-a (ug/L)") 
 #log-transform data is more normal
-hist(Me_all_interp$CD_cellsmL_interp, breaks=25,#histograph of CD
+hist(Me_all$CD_cellsmL, breaks=25,#histograph of CD
      main="non-transformed",
      xlab="CD (cells/mL)") 
 #data relatively normal
-hist(log10(Me_all_interp$CD_cellsmL_interp), breaks=25,#histograph of log10(CD)
+hist(log10(Me_all$CD_cellsmL), breaks=25,#histograph of log10(CD)
      main="log-transformed",
      xlab="CD (cells/mL)") 
 #log-transform data still normal
-hist(Me_all_interp$ExtP_kgday_interp, breaks=25,#histogrpah of P_ext
+hist(Me_all$Pext_kgday, breaks=25,#histogrpah of P_ext
      main="non-transformed",
      xlab="P_ext (kg/day)") 
 #data right skewed
-hist(log10(Me_all_interp$ExtP_kgday_interp), breaks=25,#histograph of log10(P_ext)
+hist(log10(Me_all$Pext_kgday), breaks=25,#histograph of log10(P_ext)
      main="log-transformed",
      xlab="P_ext (kg/day)") 
 #log-transform data more normal
-hist(Me_all_interp$IntP_kgday_interp, breaks=25,#histograph of P_int
+hist(Me_all$Int_TotP_kgday, breaks=25,#histograph of P_int
      main="non-transformed",
      xlab="P_int (kg/day)") 
 #data relatively normal
-hist(log10(Me_all_interp$IntP_kgday_interp), breaks=25,#histograph of log10(P_int)
+hist(log10(Me_all$Int_TotP_kgday), breaks=25,#histograph of log10(P_int)
      main="log-transformed",
      xlab="P_int (kg/day)") 
 #log-transform data is still normal
-hist(Me_all_interp$HE_ratio_interp, breaks=25,#histograph of P_hypo_epi
+hist(Me_all$HE_ratio, breaks=25,#histograph of P_hypo_epi
      main="non-transformed",
      xlab="P_hypo:P_epi") 
 #data right-skewed
-hist(log10(Me_all_interp$HE_ratio_interp), breaks=25,#histograph of log10(P_hypo:epi) 
+hist(log10(Me_all$HE_ratio), breaks=25,#histograph of log10(P_hypo:epi) 
      main="log-transformed",
      xlab="P_hypo:P_epi") 
 #log-transform data more normal
@@ -173,14 +225,14 @@ Data that needs to be log-transformed is Chl-a, P_ext, and P_hypo:epi, prior to 
 a) checking lags for Chl-a_t-k...
 
 ```{r}
-Me_Chla_k<- transform(Me_all_interp, 
-                     Chla_ugL_k7=lag(Chla_ugL_interp, n=1), #adds field holding value 7 days before
-                     Chla_ugL_k14=lag(Chla_ugL_interp, n=2), #adds field holding value 14 days before
-                     Chla_ugL_k21=lag(Chla_ugL_interp, n=3), #adds field holding value 21 days before
-                     Chla_ugL_k28=lag(Chla_ugL_interp, n=4)) #adds field holding value 28 days before
+Me_Chla_k<- transform(Me_all, 
+                     Chla_ugL_k7=lag(Chla_ugL, n=7), #adds field holding value 7 days before
+                     Chla_ugL_k14=lag(Chla_ugL, n=14), #adds field holding value 14 days before
+                     Chla_ugL_k21=lag(Chla_ugL, n=21), #adds field holding value 21 days before
+                     Chla_ugL_k28=lag(Chla_ugL, n=28)) #adds field holding value 28 days before
 
-regk_Chla<- glm(formula=log10(Chla_ugL_interp) ~ #response variable
-               log10(Chla_ugL_k7), #vary the k to print the regressions
+regk_Chla<- glm(formula=log10(Chla_ugL) ~ #response variable
+               log10(Chla_ugL_k28), #vary the k to print the regressions
               data=Me_Chla_k) #data frame
 summary(regk_Chla)#prints the glm output
 aov(regk_Chla)#prints the sum of squares for the regression and residuals
@@ -189,13 +241,13 @@ aov(regk_Chla)#prints the sum of squares for the regression and residuals
 The lag of best fit for Chl-a_t-k, was chosen as k=7 days.
 
 ```{r}
-Me_Pext_k<- transform(Me_all_interp, 
-                     Pext_k7=lag(ExtP_kgday_interp, n=1), #adds field holding value 7 days before
-                     Pext_k14=lag(ExtP_kgday_interp, n=2), #adds field holding value 14 days before
-                     Pext_k21=lag(ExtP_kgday_interp, n=3), #adds field holding value 21 days before
-                     Pext_k28=lag(ExtP_kgday_interp, n=4)) #adds field holding value 28 days before
+Me_Pext_k<- transform(Me_all, 
+                     Pext_k7=lag(Pext_kgday, n=7), #adds field holding value 7 days before
+                     Pext_k14=lag(Pext_kgday, n=14), #adds field holding value 14 days before
+                     Pext_k21=lag(Pext_kgday, n=21), #adds field holding value 21 days before
+                     Pext_k28=lag(Pext_kgday, n=28)) #adds field holding value 28 days before
 
-regk_Pext<- glm(formula=log10(Chla_ugL_interp) ~ #response variable
+regk_Pext<- glm(formula=log10(Chla_ugL) ~ #response variable
                log10(Pext_k28), #vary the k to print the regressions
               data=Me_Pext_k) #data frame
 summary(regk_Pext)#prints the glm output
@@ -205,14 +257,14 @@ aov(regk_Pext)#prints the sum of squares for the regression and residuals
 The lag of best fit for P_ext,t-k, was chosen as k=28 days.
 
 ```{r}
-Me_Pint_k<- transform(Me_all_interp, 
-                     Pint_k7=lag(IntP_kgday_interp, n=1), #adds field holding value 7 days before
-                     Pint_k14=lag(IntP_kgday_interp, n=2), #adds field holding value 14 days before
-                     Pint_k21=lag(IntP_kgday_interp, n=3), #adds field holding value 21 days before
-                     Pint_k28=lag(IntP_kgday_interp, n=4)) #adds field holding value 28 days before
+Me_Pint_k<- transform(Me_all, 
+                     Pint_k7=lag(Int_TotP_kgday, n=7), #adds field holding value 7 days before
+                     Pint_k14=lag(Int_TotP_kgday, n=14), #adds field holding value 14 days before
+                     Pint_k21=lag(Int_TotP_kgday, n=21), #adds field holding value 21 days before
+                     Pint_k28=lag(Int_TotP_kgday, n=28)) #adds field holding value 28 days before
 
-regk_Pint<- glm(formula=log10(Chla_ugL_interp) ~ #response variable
-               Pint_k28, #vary the k to print the regressions
+regk_Pint<- glm(formula=log10(Chla_ugL) ~ #response variable
+               Pint_k21, #vary the k to print the regressions
               data=Me_Pint_k) #data frame
 summary(regk_Pint)#prints the glm output
 aov(regk_Pint)#prints the sum of squares for the regression and residuals
@@ -221,13 +273,13 @@ aov(regk_Pint)#prints the sum of squares for the regression and residuals
 The lag of best fit for P_int,t-k, was chosen as k=28 days.
 
 ```{r}
-Me_Pratio_k<- transform(Me_all_interp, 
-                     Pratio_k7=lag(HE_ratio_interp, n=1), #adds field holding value 7 days before
-                     Pratio_k14=lag(HE_ratio_interp, n=2), #adds field holding value 14 days before
-                     Pratio_k21=lag(HE_ratio_interp, n=3), #adds field holding value 21 days before
-                     Pratio_k28=lag(HE_ratio_interp, n=4)) #adds field holding value 28 days before
+Me_Pratio_k<- transform(Me_all, 
+                     Pratio_k7=lag(HE_ratio, n=7), #adds field holding value 7 days before
+                     Pratio_k14=lag(HE_ratio, n=14), #adds field holding value 14 days before
+                     Pratio_k21=lag(HE_ratio, n=21), #adds field holding value 21 days before
+                     Pratio_k28=lag(HE_ratio, n=28)) #adds field holding value 28 days before
 
-regk_Pratio<- glm(formula=log10(Chla_ugL_interp) ~ #response variable
+regk_Pratio<- glm(formula=log10(Chla_ugL) ~ #response variable
                log10(Pratio_k28), #vary the k to print the regressions
               data=Me_Pratio_k) #data frame
 summary(regk_Pratio)#prints the glm output
@@ -239,13 +291,13 @@ The lag of best fit for P_HEratio, t-k, was chosen as k=28 days.
 b) checking lags for CD_t-k...
 
 ```{r}
-Me_CD_k<- transform(Me_all_interp, 
-                     CD_cellsmL_k7=lag(CD_cellsmL_interp, n=1), #adds field holding value 7 days before
-                     CD_cellsmL_k14=lag(CD_cellsmL_interp, n=2), #adds field holding value 14 days before
-                     CD_cellsmL_k21=lag(CD_cellsmL_interp, n=3), #adds field holding value 21 days before
-                     CD_cellsmL_k28=lag(CD_cellsmL_interp, n=4)) #adds field holding value 28 days before
+Me_CD_k<- transform(Me_all, 
+                     CD_cellsmL_k7=lag(CD_cellsmL, n=7), #adds field holding value 7 days before
+                     CD_cellsmL_k14=lag(CD_cellsmL, n=14), #adds field holding value 14 days before
+                     CD_cellsmL_k21=lag(CD_cellsmL, n=21), #adds field holding value 21 days before
+                     CD_cellsmL_k28=lag(CD_cellsmL, n=28)) #adds field holding value 28 days before
 
-regk_CD<- glm(formula=log10(CD_cellsmL_interp) ~ #response variable
+regk_CD<- glm(formula=log10(CD_cellsmL) ~ #response variable
                log10(CD_cellsmL_k28), #vary the k to print the regressions
               data=Me_CD_k) #data frame
 summary(regk_CD)#prints the glm output
@@ -255,13 +307,13 @@ aov(regk_CD)#prints the sum of squares for the regression and residuals
 The lag of best fit was chosen as k=7 days for CD_t-k.
 
 ```{r}
-Me_Pext_k<- transform(Me_all_interp, 
-                     Pext_k7=lag(ExtP_kgday_interp, n=1), #adds field holding value 7 days before
-                     Pext_k14=lag(ExtP_kgday_interp, n=2), #adds field holding value 14 days before
-                     Pext_k21=lag(ExtP_kgday_interp, n=3), #adds field holding value 21 days before
-                     Pext_k28=lag(ExtP_kgday_interp, n=4)) #adds field holding value 28 days before
+Me_Pext_k<- transform(Me_all, 
+                     Pext_k7=lag(Pext_kgday, n=7), #adds field holding value 7 days before
+                     Pext_k14=lag(Pext_kgday, n=14), #adds field holding value 14 days before
+                     Pext_k21=lag(Pext_kgday, n=21), #adds field holding value 21 days before
+                     Pext_k28=lag(Pext_kgday, n=28)) #adds field holding value 28 days before
 
-regk_Pext<- glm(formula=log10(CD_cellsmL_interp) ~ #response variable
+regk_Pext<- glm(formula=log10(CD_cellsmL) ~ #response variable
                log10(Pext_k28), #vary the k to print the regressions
               data=Me_Pext_k) #data frame
 summary(regk_Pext)#prints the glm output
@@ -271,13 +323,13 @@ aov(regk_Pext)#prints the sum of squares for the regression and residuals
 The lag of best fit was chosen as k=28 days for P_ext,t-k.
                 
 ```{r}
-Me_Pint_k<- transform(Me_all_interp, 
-                     Pint_k7=lag(IntP_kgday_interp, n=1), #adds field holding value 7 days before
-                     Pint_k14=lag(IntP_kgday_interp, n=2), #adds field holding value 14 days before
-                     Pint_k21=lag(IntP_kgday_interp, n=3), #adds field holding value 21 days before
-                     Pint_k28=lag(IntP_kgday_interp, n=4)) #adds field holding value 28 days before
+Me_Pint_k<- transform(Me_all, 
+                     Pint_k7=lag(Int_TotP_kgday, n=7), #adds field holding value 7 days before
+                     Pint_k14=lag(Int_TotP_kgday, n=14), #adds field holding value 14 days before
+                     Pint_k21=lag(Int_TotP_kgday, n=21), #adds field holding value 21 days before
+                     Pint_k28=lag(Int_TotP_kgday, n=28)) #adds field holding value 28 days before
 
-regk_Pint<- glm(formula=log10(CD_cellsmL_interp) ~ #response variable
+regk_Pint<- glm(formula=log10(CD_cellsmL) ~ #response variable
                Pint_k28, #vary the k to print the regressions
               data=Me_Pint_k) #data frame
 summary(regk_Pint)#prints the glm output
@@ -287,13 +339,13 @@ aov(regk_Pint)#prints the sum of squares for the regression and residuals
 The lag of best fit was chosen as k=28 days for P_int, t-k.
 
 ```{r}
-Me_Pratio_k<- transform(Me_all_interp, 
-                     Pratio_k7=lag(HE_ratio_interp, n=1), #adds field holding value 7 days before
-                     Pratio_k14=lag(HE_ratio_interp, n=2), #adds field holding value 14 days before
-                     Pratio_k21=lag(HE_ratio_interp, n=3), #adds field holding value 21 days before
-                     Pratio_k28=lag(HE_ratio_interp, n=4)) #adds field holding value 28 days before
+Me_Pratio_k<- transform(Me_all, 
+                     Pratio_k7=lag(HE_ratio, n=7), #adds field holding value 7 days before
+                     Pratio_k14=lag(HE_ratio, n=14), #adds field holding value 14 days before
+                     Pratio_k21=lag(HE_ratio, n=21), #adds field holding value 21 days before
+                     Pratio_k28=lag(HE_ratio, n=28)) #adds field holding value 28 days before
 
-regk_Pratio<- glm(formula=log10(CD_cellsmL_interp) ~ #response variable
+regk_Pratio<- glm(formula=log10(CD_cellsmL) ~ #response variable
                log10(Pratio_k28), #vary the k to print the regressions
               data=Me_Pratio_k) #data frame
 summary(regk_Pratio)#prints the glm output
@@ -306,20 +358,20 @@ The lag of best fit was chosen as k=28 days for P_ratio, t-k.
 c) computing lag values and add to data file...
 
 ```{r}
-Me_all_interp<- Me_all_interp %>%
-  mutate(Chla_ugL_interp_k7=lag(Chla_ugL_interp, n=1),
-         CD_cellsmL_interp_k7=lag(CD_cellsmL_interp, n=1),
-         ExtP_kgday_interp_k28=lag(ExtP_kgday_interp, n=4),
-         IntP_kgday_interp_k28=lag(IntP_kgday_interp, n=4),
-         HE_ratio_interp_k28=lag(HE_ratio_interp, n=4))
+Me_all<- Me_all %>%
+  mutate(Chla_ugL_k7=lag(Chla_ugL, n=7),
+         CD_cellsmL_k7=lag(CD_cellsmL, n=7),
+         Pext_kgday_k28=lag(Pext_kgday, n=28),
+         Pext_kgday_k28_noother=lag(Pext_kgday_noother, n=28),
+         Int_TotP_kgday_k28=lag(Int_TotP_kgday, n=28),
+         HE_ratio_k28=lag(HE_ratio, n=28))
 ```
 
 Lagged data computed and added to new data frame. 
-
 # Step 6. Save as new data file:
 
 ```{r}
-write.csv(Me_all_interp, file="Cleaned_data/Impact_model_input_data.csv")
+write.csv(Me_all, file="Cleaned_data/Impact_model_input_data.csv")
 ```
 
-Merged file saved as "Impact_model_input_data.csv" in Clean_data folder.
+File saved as "Impact_model_input_data.csv" in Clean_data folder.

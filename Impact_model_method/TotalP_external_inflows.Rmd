@@ -10,8 +10,7 @@ editor_options:
 ---
 
 The purpose of this program is to calculate the external total P loading
-to Lake Mendota, from the three main inflows of Pheasant Branch (PB), Yahara 
-River (YR), and Six-Mile Creek (SMC). 
+to Lake Mendota, from the three main inflows of Pheasant Branch (PB), Yahara River (YR), and Six-Mile Creek (SMC). 
 P_inflow = P concentration * flow rate
 
 
@@ -127,7 +126,7 @@ b) interpolating data for YR inflow using linear regression...
 YR_date_range<- seq( #creates a vector of sequence data
   min(YR_TotP_flow$sampledate), #starting at the first sample date
   max(YR_TotP_flow$sampledate), #ending at the last sample date
-  by="1 day") #observations every 14 days (bimonthly) 
+  by="1 day") #observations every 1 day
 YR_interpolated<- approx( #creates a vector of data that linearly interpolates 
   YR_TotP_flow$sampledate, #across date
   YR_TotP_flow$TotP_kgday, #the predicted values of Hypo P: Epi P
@@ -145,7 +144,7 @@ c) interpolating data for SMC inflow using linear regression...
 SMC_date_range<- seq( #creates a vector of sequence data
   min(SMC_TotP_flow$sampledate), #starting at the first sample date
   max(SMC_TotP_flow$sampledate), #ending at the last sample date
-  by="1 day") #observations every 14 days (bimonthly) 
+  by="1 day") #observations every 1 day
 SMC_interpolated<- approx( #creates a vector of data that linearly interpolates 
   SMC_TotP_flow$sampledate, #across date
   SMC_TotP_flow$TotP_kgday, #the predicted values of Hypo P: Epi P
@@ -174,7 +173,15 @@ Inflows<- Inflows %>%
 
 Total P data files merged into one file, "Inflows."
 
-# Step 5. View and summarize the data:
+# Step 5. Save new data file.
+
+```{R}
+write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data file
+```
+
+Data file saved as "TotalP_inflows.csv" in the Cleaned_data folder.
+
+# Step 6. View and summarize the data:
 
 a) viewing daily total P loading for each inflow...
 
@@ -215,17 +222,17 @@ fig4<- ggplot(data=Inflows_long,
            xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+fig4 #prints out plot
 ggsave(fig4, file="Products/Figure4.png")
 ```
 
 Plotted Total P for day of year across the three inflows, for all years. 
 
-b) calculating average daily total P loading for each inflow during the CyanoHAB 
-season...
+b) calculating average daily total P loading for each inflow during the CyanoHAB season...
 
 ```{r}
 Inflows_avg<- Inflows_long %>%
-  filter(daynum>= 195 & daynum <=255) %>% #filter for CyanoHAB season
+  filter(daynum>= 196 & daynum <=258) %>% #filter for CyanoHAB season
   group_by(Inflow) %>% #compute for each inflow
   summarise(mean=mean(TotP_kgday, #average daily total P loading
                       na.rm=TRUE),
@@ -237,35 +244,30 @@ Inflows_avg
 
 Estimated average daily total P loading during CyanoHAB season for each inflow.
 
-c) calculating annual total P load during CyanoHAB season for each year...
+c) calculating average annual total P load during CyanoHAB season...
 
 ```{r}
-Inflows_sumavg<- Inflows %>%
-  filter(daynum>= 195 & daynum <=255) %>% #filter for CyanoHAB season
-  group_by(Yr) %>% #group all records by year
-  summarise(sum_TP_kgyr=sum(allInflows_TotP_kgday))  #calculate the total P load
+Inflows_sumavg<- Inflows_long %>%
+  filter(daynum>= 196 & daynum <=258,
+         Inflow=="All inflows") %>%#filter for CyanoHAB season
+  group_by(Yr) %>%
+  summarize(sum=sum(TotP_kgday)) #sum dailyP loads 
 Inflows_sumavg
+mean(Inflows_sumavg$sum)
+sd(Inflows_sumavg$sum, na.rm=TRUE)/sqrt(length(Inflows_sumavg$sum))
 ```
 
-The average annual total P load, during the CyanoHAB season, was
-`r mean(Inflows_sumavg$sum_TP_kgyr)` +- `r sd(Inflows_sumavg$sum_TP_kgyr)/sqrt(length(Inflows_sumavg$sum_TP_kgyr))` kg/yr. 
+Average annual total P load calculated.
 
-d) calculating annual total P load for year...
+d) calculating average annual total P load for all streams whole year...
 
 ```{r}
-Inflows_yravg<- Inflows %>%
-  group_by(Yr) %>% #group all records by year
-  summarise(sum_TP_kgyr=sum(allInflows_TotP_kgday))  #calculate the total P load
-Inflows_yravg
+sumavg_wholeyr<- Inflows %>%
+  filter(Yr>=2013 & Yr<2022) %>% #filter out half years
+  select(allInflows_TotP_kgday, Yr) %>% #select columns needed
+  group_by(Yr) %>%
+  summarize(sum=sum(allInflows_TotP_kgday))
+sumavg_wholeyr
+mean(sumavg_wholeyr$sum)
+sd(sumavg_wholeyr$sum, na.rm=TRUE)/sqrt(length(sumavg_wholeyr$sum))
 ```
-
-The average annual total P load, for the year, was
-`r mean(Inflows_yravg$sum_TP_kgyr)` +- `r sd(Inflows_yravg$sum_TP_kgyr)/sqrt(length(Inflows_yravg$sum_TP_kgyr))` kg/yr. 
-
-# Step 6. Save new data file.
-
-```{R}
-write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data file
-```
-
-Data file saved as "TotalP_inflows.csv" in the Cleaned_data folder.

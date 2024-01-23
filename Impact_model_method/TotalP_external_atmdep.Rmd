@@ -68,17 +68,6 @@ precip<- precip %>%
 
 Total P from atmospheric deposition transformed and filtered.
 
-c) viewing data available...
-
-```{r}
-ggplot(precip) + 
-  geom_point(aes(sampledate, totP_atm_kgday)) +
-  theme_classic(base_size = 12) +
-  labs(x="Sample Date", y="Total P deposited (kg/day)")
-```
-
-Total P from atmospheric deposition plotted. Data available from 2012 to 2022.
-
 # Step 3. Interpolate data between observations to get daily loads: 
 
 a) interpolating...
@@ -104,9 +93,16 @@ precip_interp <-precip_interp %>%
 
 Total P loading interpreted for atmospheric deposition.
 
+# Step 4. Save estimated P atm deposition as separate data file:
+
+```{r}
+write.csv(precip_interp, file="Cleaned_data/TotalP_atm.csv")
+```
+
+New file saved as "TotalP_atm.csv" in the Cleaned_data folder.
 # Step 4. View and summarize the data:
 
-a) viewing the data...
+a) plotting atmospheric deposition total P load by day of year...
 ```{r}
 ggplot(data=precip_interp, 
        aes(x=daynum, y=atm_TotP_kgday)) +
@@ -116,14 +112,13 @@ ggplot(data=precip_interp,
   labs(x="Day of Year", y="Total P deposited (wet and dry), in kg/day") 
 ```
 
-Total P from atmospheric deposition plotted by day of year.
+Data plotted.
 
-b) calculating average daily total P loading from atm deposit during CyanoHAB 
-season...
+b) calculating average daily total P loading from atm deposit during CyanoHAB season...
 
 ```{r}
 precip_dayavg<- precip_interp %>%  
-  filter(daynum >=195 & daynum <= 255) %>%
+  filter(daynum >=196 & daynum <= 258) %>%
   summarize(mean=mean(atm_TotP_kgday, #average daily total P loading
                       na.rm=TRUE),
             se=(sd(atm_TotP_kgday, na.rm=TRUE)/sqrt(length(atm_TotP_kgday))),
@@ -133,20 +128,24 @@ precip_dayavg<- precip_interp %>%
 precip_dayavg
 ```
 
-c) calculating total P loading from atm deposit dring CyanoHAB season...
+c) calculating average annual total P loading from atm deposit during CyanoHAB season...
 
 ```{r}
 precip_sumtot<- precip_interp %>%
-  filter(daynum>= 195 & daynum <=255) %>% #filter for CyanoHAB season
+  filter(daynum>= 196 & daynum <=258) %>% #filter for CyanoHAB season
   group_by(Yr) %>% #group all records by year
   summarise(sum_TP_kgyr=sum(atm_TotP_kgday))  #calculate the total P load
 precip_sumtot
+sum_table<-precip_sumtot %>%
+  summarize(mean=mean(sum_TP_kgyr),
+          se=(sd(sum_TP_kgyr)/sqrt(length(sum_TP_kgyr))),
+            min=min(sum_TP_kgyr),
+            max=max(sum_TP_kgyr)
+            )
+sum_table
 ```
 
-The average annual total P load, during the CyanoHAB season, was
-`r mean(precip_sumtot$sum_TP_kgyr)` +- `r sd(precip_sumtot$sum_TP_kgyr)/sqrt(length(precip_sumtot$sum_TP_kgyr))` kg/yr.
-
-d) plotting total P load, during the CyanoHAB season...
+d) plotting P_atm by year (cyanoHAB season only)...
 
 ```{r}
 ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
@@ -156,33 +155,3 @@ ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
 ```
 
 Total P load from atm deposit plotted by year for CyanoHAB season.
-
-e) calculating annual total P loading from atm deposit by year...
-
-```{r}
-precip_yrtot<- precip_interp %>%
-  group_by(Yr) %>% #group all records by year
-  summarise(sum_TP_kgyr=sum(atm_TotP_kgday))  #calculate the total P load
-precip_yrtot
-```
-
-The average annual total P load, for the year, was
-`r mean(precip_yrtot$sum_TP_kgyr)` +- `r sd(precip_yrtot$sum_TP_kgyr)/sqrt(length(precip_yrtot$sum_TP_kgyr))` kg/yr. 
-
-f) plotting annual total P load per year...
-```{r}
-ggplot(precip_yrtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
-  geom_col() +
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)") 
-```
-
-Total P load from atm deposit plotted by year.
-
-# Step 5. Save estimated P atm deposition as separate data file:
-
-```{r}
-write.csv(precip_interp, file="Cleaned_data/TotalP_atm.csv")
-```
-
-New file saved as "TotalP_atm.csv" in the Cleaned_data folder.
