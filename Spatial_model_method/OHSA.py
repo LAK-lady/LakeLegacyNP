@@ -7,8 +7,8 @@ import arcpy
 arcpy.env.overwriteOutput = True
 
 ## Specify and set the local workspace:
-workspace = r"C:\Users\LKNOSE\OneDrive - Environmental Protection Agency (EPA)\Profile\Documents\SSWR.405.2.2_LegacyNutrients\Analysis\Python\Yahara_Pexport" #spe
-arcpy.env.workspace = r"C:\Users\LKNOSE\OneDrive - Environmental Protection Agency (EPA)\Profile\Documents\SSWR.405.2.2_LegacyNutrients\Analysis\Python\Yahara_Pexport"
+workspace = r"C:\\Python\Yahara_Pexport" #spe
+arcpy.env.workspace = r"C:\\Python\Yahara_Pexport"
 
 ohsa = arcpy.stats.OptimizedHotSpotAnalysis("Total_P_mapped_Project", # Input_Features= stream total P concentrations mapped to monitoring sites 
 "Total_P_hotspot_optimized", #Output_Features= Moran's I value for each monitoring site
