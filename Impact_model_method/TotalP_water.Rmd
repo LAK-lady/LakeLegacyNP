@@ -1,7 +1,7 @@
 ---
 title: "TotalP_water.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2023-04-10'
+date: '2024-03-27'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -26,31 +26,40 @@ Packages loaded.
 b) Loading the data...
 
 ```{r}
-data<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) #has nutrient data measured in lake
+data<- read.csv(file="Original_data/EFL_chem.csv", header=TRUE) #has nutrient data measured in lake
 ```
 
 # Step 2. Transform and filter data:
 
-a) filter and transform data from Lake Mendota...
+a) filter and transform data from EFL...
 
 ```{r}
-ME_P<- data %>%
-  filter(lakeid=="ME", #filter for Lake Mendota
-         rep=="1") %>% #filter for rep 1 data only (exclude analytical reps)
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #format as Date
-         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
-         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
-         Depth_m = depth) %>% #rename depth field with units (meters)
-  select(sampledate, TotP_mgL, DisP_mgL, Depth_m) %>%
+ft_m <- 0.3048 #conversion factor from feet to m
+ug_mg<- 1/1000 #conversion factor from ug to mg
+EFL_totP<- data %>%
+  filter(Analyte=="TP") %>% #filter for total P
+  mutate(sampledate=as.Date(Date, format="%m/%d/%Y",
+                            origin="1899-12-30"), #format as Date
+         Depth_m = depth_ft*ft_m) %>% #rename depth field with units (meters)
+  select(sampledate, Depth_m, Analyte, Value) 
+EFL_totP<- reshape(EFL_totP, idvar=c("sampledate", "Depth_m"), 
+               timevar="Analyte", 
+               direction="wide") #reshape to wide
+EFL_totP<- EFL_totP %>%
+  mutate(TotP_mgL=Value.TP*ug_mg, #rename field
+         Value.TP=NULL,
+         Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #remove extra field
   filter(!is.na(TotP_mgL)) #remove records with NAs
-stem(ME_P$Depth_m) #plots the number of observations by depth (y-axis)
-sort(unique(data$depth)) #identify the depths of measurements
+  
+stem(EFL_totP$Depth_m) #plots the number of observations by depth (y-axis)
+sort(unique(EFL_totP$Depth_m)) #identify the depths of measurements
 ```
 
 b) Filter and transform epilimnion P data...
 ```{r}
-Epi_P<- ME_P %>%
-  filter(Depth_m < 4) %>% #for observations taken at or above 1.5 m
+Epi_P<- EFL_totP %>%
+  filter(Depth_m < 8) %>% #for observations taken at or above 8 m
   group_by(sampledate) %>% #group all observations in same sample date
   summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in epi 
 
@@ -76,8 +85,8 @@ Epi P data transformed and filtered.
 c) Filter and transform hypolimnion P data...
 
 ```{r}
-Hypo_P<- ME_P %>%
-  filter(Depth_m >= 20) %>% #for observations taken at or below 20 m
+Hypo_P<- EFL_totP %>%
+  filter(Depth_m >= 14) %>% #for observations taken at or below 20 m
   group_by(sampledate) %>% #group all observations in same sample date
   summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in hypo
 
@@ -105,8 +114,8 @@ Hypo P data transformed and filtered.
 total P ratio:
 
 ```{r}
-Me_P_water<- merge(epiP_interp, hypoP_interp, by="sampledate") #merge the epi and hypo P by sample date
-Me_P_water<- Me_P_water %>% #need to clean up 
+EFL_P_water<- merge(epiP_interp, hypoP_interp, by="sampledate") #merge the epi and hypo P by sample date
+EFL_P_water<- EFL_P_water %>% #need to clean up 
   mutate(Epi_TotP_mgL=TotP_mgL.x, #rename column
          TotP_mgL.x=NULL, #remove duplicate column
          Hypo_TotP_mgL=TotP_mgL.y,#rename column
@@ -123,26 +132,26 @@ Me_P_water<- Me_P_water %>% #need to clean up
 a) Plotting epi P data...
 
 ```{r}
-ggplot(data=subset(Me_P_water, Yr>=2012), 
+ggplot(data=EFL_P_water, 
        aes(x=daynum,y=Epi_TotP_mgL)) + 
   geom_point(aes(shape=as.factor(Yr)))+
-  labs(title="Epilimnion (depth < 4 m), Lake Mendota, WI", #plot title
+  labs(title="Epilimnion (<8m), East Fork Lake", #plot title
        x="Day of Year", #x axis label
        y="Total Phosphorus Concentration (mg/L)", #y axis label
        shape="Year",
-       caption="White highlight indicates CyanoHAB season, mid-Jul to mid-Sep.
+       caption="White highlight indicates CyanoHAB season.
        Red dashed line indicates moving-average regression.") + 
-  ylim(0, max(Me_P_water$Epi_TotP_mgL)) +
-  scale_x_continuous(breaks = seq(0, max(Me_P_water$daynum), #places axis tick marks
+  ylim(0, max(EFL_P_water$Epi_TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(EFL_P_water$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   #scale_color_continuous(name="Year")+
   geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=188, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=238, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 Epi data plotted.
@@ -150,63 +159,49 @@ Epi data plotted.
 b) Plotting hypo P data...
 
 ```{r}
-ggplot(data=subset(Me_P_water, Yr>=2012), 
+ggplot(data=subset(EFL_P_water, Yr>=2012), 
        aes(x=daynum,y=Hypo_TotP_mgL)) + 
   geom_point(aes(shape=as.factor(Yr)))+
-  labs(title="Hypolimnion (depth >= 20 m), Lake Mendota, WI", #plot title
+  labs(title="Hypolimnion (>14m), East Fork Lake", #plot title
        x="Day of Year", #x axis label
        y="TOtal Phosphorus Concentration (mg/L)", #y axis label
        shape="Year",
-       caption="White highlight indicates CyanoHAB season, mid-Jul to mid-Sep.
+       caption="White highlight indicates CyanoHAB season.
        Red dashed line indicates moving-average regression.") + 
-  ylim(0, max(Me_P_water$Hypo_TotP_mgL)) +
-  scale_x_continuous(breaks = seq(0, max(Me_P_water$daynum), #places axis tick marks
+  ylim(0, max(EFL_P_water$Hypo_TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(EFL_P_water$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   #scale_color_continuous(name="Year")+ changed to factor no longer color
   geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=188, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=238, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 c) Plotting hypo: epi total P...
 
 ```{r}
-Me_P_ratio <- Me_P_water %>%
-  filter(Yr>= 2012 & Yr<= 2018) %>% #filter for study period
+EFL_P_ratio <- EFL_P_water %>%
   select(Yr, daynum, HE_ratio_TotP_mgL) #select only the 
-write.csv(Me_P_ratio, file="Products/Figure6_data.csv")
-fig6<- plot_ly(x=Me_P_ratio$Yr, #creates 3D plot with year as x axis
-               y=Me_P_ratio$daynum, #day of year as y axis
-               z=Me_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
+
+fig<- plot_ly(x=EFL_P_ratio$Yr, #creates 3D plot with year as x axis
+               y=EFL_P_ratio$daynum, #day of year as y axis
+               z=EFL_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
-               color=Me_P_ratio$HE_ratio_TotP_mgL) %>% #colors points by value
+               color=EFL_P_ratio$HE_ratio_TotP_mgL) %>% #colors points by value
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
                     )
          ) 
-fig6 #save image mannually
+fig #save image mannually
 ```
-
-d) calculating the annual average P hypo:epi...
-
-```{r}
-Me_P_ratio_annavg <- Me_P_ratio %>%
-  filter(Yr>= 2012 & Yr<= 2018, daynum >=196 & daynum <= 258) %>%
-  group_by(Yr) %>%
-  summarize(mean=mean(HE_ratio_TotP_mgL, na.rm=TRUE),
-            se=(sd(HE_ratio_TotP_mgL, na.rm=TRUE)/sqrt(length(HE_ratio_TotP_mgL))))
-Me_P_ratio_annavg
-```
-
-Annual averages calculated.
 
 # Step 5. Save the new data file:
 
 ```{r}
-write.csv(Me_P_water, file="Cleaned_data/TotalP_water.csv")
+write.csv(EFL_P_ratio, file="Cleaned_data/TotalP_water_EFL.csv")
 ```
