@@ -2,7 +2,7 @@
 The purpose of this site is to provide the code and data used to quantify the impact of the internal load (legacy P load from lake sediments) on cyanHAB severity in a lake and map areas upstream of the lake with potential legacy P stores. The framework includes an impact model method and a mapping model method described below.  
 
 The code and data contained herein are provided as supplemental material associated with the following article: 
-Lauren A. Knose, David Cole, Edgar Martín-Hernández, Céline Vaneeckhaute, Michael A. Gonzalez, Victor M. Zavala, Gerardo J. Ruiz-Mercado. 2024. "Framework for determining impact of legacy nutrient loading from lake sediments (the internal load) on cyanobacteria harmful algal blooms severity in freshwater lake." Water Research (submitted)  
+Lauren A. Knose, David Cole, Edgar Martín-Hernández, Céline Vaneeckhaute, Michael A. Gonzalez, Victor M. Zavala, Gerardo J. Ruiz-Mercado. 2024. "Framework for determining impact of legacy nutrient loading from lake sediments (the internal load) on cyanobacteria harmful algal blooms severity in freshwater lake." Water Research (under review)  
 
 # Authorship
 This GitHub was generated and maintained by Dr. Lauren Knose, an ORISE Fellow with the U.S. Environmental Protection Agency Office of Research and Development. Dr. Knose is the author of the impact model method. David Cole, PhD Student at the University of Wisconsin, is the author of the spatial model method. When using or referencing information from this repository, please use the citation above.
