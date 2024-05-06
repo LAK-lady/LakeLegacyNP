@@ -1,0 +1,120 @@
+---
+title: "Stream_P_datamerge"
+author: "Lauren Knose"
+date: "2024-04-25"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The purpose of this package is to take original stream data and merge into a single data file
+
+# Step 1. Load the data and packages needed:
+
+a) Loading the packages needed...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(data.table) #needed for matching values from 2 data frames
+library(ggplot2) #needed for plotting
+
+```
+
+Packages loaded.
+
+
+b) Loading the data needed...
+
+```{r}
+PB_1<- read.csv(file="Original_data/USGS_PheasantBranch_P.csv") #load USGS data, Pheasant Branch
+PB_2<- read.csv(file="Original_data/WIDNR_PheasantBRanch_P.csv") #load WIDNR data, Pheasant Branch
+
+SMC_1<- read.csv(file="Original_data/USGS_SixMileCreek_P.csv") #load USGS data, Six Mile Creek
+SMC_2<- read.csv(file="Original_data/WIDNR_SixMileCreek_P.csv") #load WIDNR data, Six Mile Creek
+
+YR_1<- read.csv(file="Original_data/USGS_YaharaRiver_P.csv") #load USGS data, Yahara River
+YR_2<- read.csv(file="Original_data/WIDNR_YaharaRiver_P.csv") #load WIDNR data, Yahara River
+```
+
+# Step 2. Clean and reformat the data:
+
+a) reformatting the data...
+
+```{r}
+colnames(PB_1) #print column names
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanSRP_mgL']<- 'SRP_mgL' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanSRP_lbday']<- 'SRP_lbday' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanTotP_lbday']<- 'TotP_lbday' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanTotP_mgL']<- 'TotP_mgL' #rename column
+colnames(PB_1)[colnames(PB_1) =='datetime']<- 'sampledate' #rename column
+colnames(PB_1)[colnames(PB_1) =='Site_Name']<- 'Site' #rename column
+PB_1<- PB_1 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+colnames(PB_1) #print column names to check they were changed
+
+colnames(PB_2)
+colnames(PB_2)[colnames(PB_2) =='PO4_mgL']<- 'SRP_mgL' #rename column
+PB_2<- PB_2 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+PB_2$X=NULL #removed empty field
+PB_2$X.1=NULL #removed empty field
+PB_2$X.2=NULL #removed empty field
+colnames(PB_2) #reprint 
+```
+
+```{r}
+colnames(SMC_1) #print column names
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanSRP_mgL']<- 'SRP_mgL' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanSRP_lbday']<- 'SRP_lbday' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanTotP_lbday']<- 'TotP_lbday' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanTotP_mgL']<- 'TotP_mgL' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='datetime']<- 'sampledate' #rename column
+SMC_1<- SMC_1 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+colnames(SMC_1) #print column names to check they were changed
+
+colnames(SMC_2)
+colnames(SMC_2)[colnames(SMC_2) =='DissP_PO4_mgL']<- 'SRP_mgL' #rename column
+SMC_2<- SMC_2 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+SMC_2$X=NULL #removed empty field
+SMC_2$X.1=NULL #removed empty field
+SMC_2$X.2=NULL #removed empty field
+SMC_2$X.3=NULL #removed empty field
+colnames(SMC_2) #reprint 
+```
+
+
+
+Data reformatted.
+
+# Step 3. Combine data for each source:
+
+a) combine data for stream 1...
+
+```{r}
+nm2 <- intersect(names(PB_1)[-1], names(PB_2)[-1])
+PB <- copy(PB_1)
+setDT(PB)[PB_2, (nm2) := Map(fcoalesce, mget(nm2),
+       mget(paste0('i.', nm2))), on = .(sampledate)]
+sum(is.na(PB_1$TotP_mgL))
+sum(is.na(PB$TotP_mgL))
+```
+
+Stream 1 data combined.
+
+b) combining data for stream 2...
+
+```{r}
+nm2 <- intersect(names(PB_1)[-1], names(PB_2)[-1])
+PB <- copy(PB_1)
+setDT(PB)[PB_2, (nm2) := Map(fcoalesce, mget(nm2),
+       mget(paste0('i.', nm2))), on = .(sampledate)]
+sum(is.na(PB_1$TotP_mgL))
+sum(is.na(PB$TotP_mgL))
+```
+
