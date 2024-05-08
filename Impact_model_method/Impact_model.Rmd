@@ -1,7 +1,7 @@
 ---
 title: "Impact_model.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2024-03-27'
+date: '2024-05-08'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -23,11 +23,22 @@ library(car) #needed to get model VIFs
 b) Loading data...
 
 ```{r}
-EFL_all<- merge(EFL_phyto2, EFL_P_ratio,
-                by.x=c("Yr", "daynum_bin"),
-                by.y=c("Yr", "daynum"),
-                all.x=TRUE)
-EFL_all$HE_ratio_TotP_mgL<- na.approx(EFL_all$HE_ratio_TotP_mgL) #interpolates NAs
+internalloads<- read.csv(file="Cleaned_data/TotalP_allint.csv")
+externalloads<- read.csv(file="Cleaned_data/TotalP_allext.csv")
+cyanoHABseverity<- read.csv(file="CleaneD_data/cyanoHAB_severity.csv")
+
+
+cyanoHABseverity2<- cyanoHABseverity %>%
+  select(Yr, daynum_bin, Chla_ugL)
+
+
+
+HL_all<- merge(internalloads, externalloads,
+                by="sampledate")
+HL_all<-merge(HL_all, cyanoHABseverity2, 
+             by.x=c("Yr.x","daynum_bin"), #19 observations
+             by.y=c("Yr", "daynum_bin") #36 observations
+             )
 ```
 
 
@@ -44,35 +55,15 @@ aov(regka_CD) #prints the sum of squares for the regression
 vif(regka_CD) #prints the VIFs 
 ```
 
-a) Running first model for Chl-a...
-Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + error
-
-```{r}
-Me_complete<- na.omit(Me_all) #remove NAs
-regka_Chla<- glm(formula=log10(Chla_ugL) ~ #Chla_t
-              log10(Chla_ugL_k7) + #Chl-a_t-k
-                log10(Pext_kgday_k28), #P_ext,t-k
-              data=Me_complete) #data frame
-summary(regka_Chla)#prints the AIC 
-summary(lm(regka_Chla))#prints the R2 and adjusted R2
-aov(regka_Chla) #prints the sum of squares for the regression
-vif(regka_Chla) #prints the VIFs 
-png(file="Products/SI_figures/Figure10.png", width=750, height=500) #open png file
-layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
-fig10<-plot(regka_Chla) #creates plot
-dev.off() #closes the file
-par(mfrow=c(1,1))
-```
-
 b) Running second model for Chl-a...
 Model: log10(Chla_t) ~ log10(Chla_t-k) + log10(P_ext,t-k) + P_int,t-k + error
 
 ```{r}
 regkb_Chla<- glm(formula=log10(Chla_ugL) ~ #Chla_t
-              log10(Chla_ugL_k7) + #Chla_t-k
-                log10(Pext_kgday_k28) + #P_ext,t-k
-                Int_TotP_kgday_k28, #P_int,t-k
-              data=Me_complete) #data frame
+              log10(lag(Chla_ugL, n=1)) + #Chla_t-k
+                log10(lag(TOTP_kg_All, n=1)) + #P_ext,t-k
+                log10(lag(intload_P_kgday, n=1)), #P_int,t-k
+              data=HL_all) #data frame
 summary(regkb_Chla)#prints the glm output
 summary(lm(regkb_Chla))#prints the R2 and adjusted R2
 aov(regkb_Chla)#prints the sum of squares for the regression and residuals

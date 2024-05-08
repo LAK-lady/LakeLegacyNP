@@ -1,7 +1,7 @@
 ---
 title: "TotalP_water.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2024-03-27'
+date: '2024-05-08'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -26,113 +26,191 @@ Packages loaded.
 b) Loading the data...
 
 ```{r}
-data<- read.csv(file="Original_data/EFL_chem.csv", header=TRUE) #has nutrient data measured in lake
+nutr<- read.csv(file="Original_data/HarshaLake_chem.csv", header=TRUE) #has nutrient data measured in lake
 ```
 
 # Step 2. Transform and filter data:
 
-a) filter and transform data from EFL...
+a) filter and transform data...
 
 ```{r}
+### identify the labels used for fields ###
+colnames(nutr) #identify labels for fields to filter
+unique(nutr$id) #determine the label for the site
+head(nutr$Date) #determine format for sample date
+unique(nutr$depth) #determine the depth most data was collected
 ft_m <- 0.3048 #conversion factor from feet to m
 ug_mg<- 1/1000 #conversion factor from ug to mg
-EFL_totP<- data %>%
-  filter(Analyte=="TP") %>% #filter for total P
+
+HL_nutr<- nutr %>%
+  filter(id=="BUO") %>% #filter for site
   mutate(sampledate=as.Date(Date, format="%m/%d/%Y",
                             origin="1899-12-30"), #format as Date
-         Depth_m = depth_ft*ft_m) %>% #rename depth field with units (meters)
-  select(sampledate, Depth_m, Analyte, Value) 
-EFL_totP<- reshape(EFL_totP, idvar=c("sampledate", "Depth_m"), 
-               timevar="Analyte", 
-               direction="wide") #reshape to wide
-EFL_totP<- EFL_totP %>%
-  mutate(TotP_mgL=Value.TP*ug_mg, #rename field
-         Value.TP=NULL,
+         Depth_m = as.numeric(depth)*ft_m,#rename field with units (meters)
+         TN_ugL=TN,#rename field with units
+         TP_ugL=TP) %>% #rename field with units
+  select(sampledate, Depth_m, TN_ugL, TP_ugL) 
+
+
+### identify depth for epi and hypo ###
+stem(HL_nutr$Depth_m) #plots the number of observations by depth (y-axis)
+sort(unique(HL_nutr$Depth_m)) #identify the depths of measurements
+
+### assign epi depth data ###
+Epi_nutr<- HL_nutr %>%
+  filter(Depth_m < 3) %>% #for observations taken at or above 8 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_ugL=mean(TP_ugL, na.rm=TRUE),
+            TotN_ugL=mean(TN_ugL, na.rm=TRUE)) #calculates mean for all depths in epi 
+
+### assign hypo depth data### 
+Hypo_nutr<- HL_nutr %>%
+  filter(Depth_m > 10) %>% #for observations taken at or above 8 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_ugL=mean(TP_ugL, na.rm=TRUE),
+            TotN_ugL=mean(TN_ugL, na.rm=TRUE)) #calculates mean for all
+
+### merge the epi and hypo data ###
+HL_nutr2<- merge(Epi_nutr, Hypo_nutr, by="sampledate")
+HL_nutr2<- HL_nutr2 %>%
+  rename(epi_TP_ugL=TotP_ugL.x,
+         epi_TN_ugL=TotN_ugL.x,
+         hypo_TP_ugL=TotP_ugL.y,
+         hypo_TN_ugL=TotN_ugL.y) %>%
+  mutate(HE_ratio_TotP_ugL=(hypo_TP_ugL/epi_TP_ugL), #calculate hypo:epi
          Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>% #remove extra field
-  filter(!is.na(TotP_mgL)) #remove records with NAs
-  
-stem(EFL_totP$Depth_m) #plots the number of observations by depth (y-axis)
-sort(unique(EFL_totP$Depth_m)) #identify the depths of measurements
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
+  filter(Yr=="2015"|Yr=="2017"|Yr=="2018"|Yr=="2019",
+         daynum>=(152-7)&daynum<=(258+7)) #filter for study period 
+
+### check for NAs and fill data gaps ###
+summary(HL_nutr2$epi_TP_ugL) #check for NAs
+HL_nutr2$epi_TP_ugL<- na.approx(HL_nutr2$epi_TP_ugL) #interpolates NAs
+summary(HL_nutr2$epi_TP_ugL) #check for NAs
+
+summary(HL_nutr2$epi_TN_ugL) #check for NAs
+HL_nutr2$epi_TN_ugL<- na.approx(HL_nutr2$epi_TN_ugL) #interpolates NAs
+summary(HL_nutr2$epi_TN_ugL) #check for NAs
+
+summary(HL_nutr2$hypo_TP_ugL) #check for NAs
+HL_nutr2$hypo_TP_ugL<- na.approx(HL_nutr2$hypo_TP_ugL) #interpolates NAs
+summary(HL_nutr2$hypo_TP_ugL) #check for NAs
+
+summary(HL_nutr2$hypo_TN_ugL) #check for NAs
+HL_nutr2$hypo_TN_ugL<- na.approx(HL_nutr2$hypo_TN_ugL) #interpolates NAs
+summary(HL_nutr2$hypo_TN_ugL) #check for NAs
+
+summary(HL_nutr2$HE_ratio_TotP_ugL) #check for NAs
+HL_nutr2$HE_ratio_TotP_ugL<- na.approx(HL_nutr2$HE_ratio_TotP_ugL) #interpolates NAs
+summary(HL_nutr2$HE_ratio_TotP_ugL) #check for NAs
 ```
 
-b) Filter and transform epilimnion P data...
-```{r}
-Epi_P<- EFL_totP %>%
-  filter(Depth_m < 8) %>% #for observations taken at or above 8 m
-  group_by(sampledate) %>% #group all observations in same sample date
-  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in epi 
+Data defined and reformatted.
 
-date_range<- seq( #creates a vector of sequence data
-  min(Epi_P$sampledate), #starting at the first sample date
-  max(Epi_P$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Epi_P$sampledate, #across date
-  Epi_P$TotP_mgL, #the predicted values of epi total P 
-  xout=date_range) #for every 1 day
-epiP_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #measurements every 14 days
-                             TotP_mgL=interpolated$y) #predicted hypo: epi P ratio
-plot(epiP_interp,
-     xlab="Date",
-     ylab="Total P concentration (mg/L)",
-     main="Epilimnion") #plots the new time series
-```
-
-Epi P data transformed and filtered.
-
-c) Filter and transform hypolimnion P data...
+Step 3. view and summarize the data:
 
 ```{r}
-Hypo_P<- EFL_totP %>%
-  filter(Depth_m >= 14) %>% #for observations taken at or below 20 m
-  group_by(sampledate) %>% #group all observations in same sample date
-  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in hypo
+### view the N data ###
+Nplot<- ggplot(data=HL_nutr2) + #plots SD across day
+  geom_line(aes(x=daynum, y=epi_TN_ugL), color="red") + #plots observations as points
+  geom_line(aes(x=daynum, y=hypo_TN_ugL), color="blue") +
+  theme_classic(base_size=12) +
+  labs(x="Day of year", y="Total N (ug/L)") +
+  labs(caption="Red line represents epilimnion. Blue line represents hypolimnion.") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+Nplot #print the figure
 
-date_range<- seq( #creates a vector of sequence data
-  min(Hypo_P$sampledate), #starting at the first sample date
-  max(Hypo_P$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Hypo_P$sampledate, #across date
-  Hypo_P$TotP_mgL, #the predicted values of epi total P 
-  xout=date_range) #for every 1 day
-hypoP_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #measurements every 14 days
-                             TotP_mgL=interpolated$y) #predicted hypo: epi P ratio
-plot(hypoP_interp,
-     xlab="Date",
-     ylab="Total P concentration (mg/L)",
-     main="Hypolimnion") #plots the new time series
+### view the P data ###
+Pplot<- ggplot(data=HL_nutr2) + #plots SD across day
+  geom_line(aes(x=daynum, y=epi_TP_ugL), color="red") + #plots observations as points
+  geom_line(aes(x=daynum, y=hypo_TP_ugL), color="blue") +
+  theme_classic(base_size=12) +
+  labs(x="Day of year", y="Total P (ug/L)") +
+  labs(caption="Red line represents epilimnion. Blue line represents hypolimnion.") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+Pplot #print the figure
 
+### overlay both figures ###
+HarshaLake_nutr_plot<- ggarrange(Nplot, Pplot, nrow=2) #plot a over plot b
+HarshaLake_nutr_plot #print out plot
+ggsave(HarshaLake_nutr_plot, file="Products/HarshaLake_nutrient_plot.png")
 ```
 
-Hypo P data transformed and filtered.
+# Step 4. Bin observations into same day number each year:
 
-# Step 3. Combine epi and hypo data into single data file, calculate hypo: epi 
-total P ratio:
-
+a) binning nutrients into expected day numbers...
 ```{r}
-EFL_P_water<- merge(epiP_interp, hypoP_interp, by="sampledate") #merge the epi and hypo P by sample date
-EFL_P_water<- EFL_P_water %>% #need to clean up 
-  mutate(Epi_TotP_mgL=TotP_mgL.x, #rename column
-         TotP_mgL.x=NULL, #remove duplicate column
-         Hypo_TotP_mgL=TotP_mgL.y,#rename column
-         TotP_mgL.y=NULL,#remove duplicate column
-         HE_ratio_TotP_mgL=Hypo_TotP_mgL/Epi_TotP_mgL, #calculate Hypo: Epi total P
-         Yr=as.integer(format(sampledate, "%Y")), #adds field with year
-         MoYr=format(sampledate, "%m/01/%Y"), #adds field with month and year
-         daynum=as.integer(format(sampledate, "%j")), #adds field with Julian date
-         Mo=as.integer(format(sampledate, "%m"))) #adds field with month)
+### define years of study ###
+Yr<- c(2015, 2017, 2018, 2019) #define year start of study period
+
+### define the observation return period ####
+hist(HL_nutr2$daynum, breaks=14, main="Nutrient measurements") #see when most observations are made
+daynum_bins<- seq(from=152, #define date start of CyanoHAB season
+                  to=258, #define date end of CyanoHAB season
+                  by=7) #creates a sequence every 7 days 
+daynum_bins #prints the expected observation dates of data
+
+### bin Chla sample dates to expected observation dates ###
+HL_nutr2 <- HL_nutr2  %>% 
+   mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-3.5), #if observation is <= bin 2 
+                daynum_bins[1], #return bin 1
+                ifelse(daynum>=(daynum_bins[2]-3.5) & #otherwise...
+                         daynum<(daynum_bins[3]-3.5),#if observation is > bin 2  and <= bin 3 
+              daynum_bins[2], #label bin 2
+              ifelse(daynum>=(daynum_bins[3]-3.5)& #otherwise...
+                       daynum<(daynum_bins[4]-3.5),
+                     daynum_bins[3], 
+                     ifelse(daynum>=(daynum_bins[4]-3.5)&
+                              daynum<(daynum_bins[5]-3.5), 
+                            daynum_bins[4], 
+                            ifelse(daynum>=(daynum_bins[5]-3.5)&
+                                     daynum<(daynum_bins[6]-3.5),
+                                   daynum_bins[5],
+                                   ifelse(daynum>=(daynum_bins[6]-3.5)&
+                                     daynum<(daynum_bins[7]-3.5),
+                                   daynum_bins[6],
+                                   ifelse(daynum>=(daynum_bins[7]-3.5)&
+                                     daynum<(daynum_bins[8]-3.5),
+                                   daynum_bins[7],
+                                   ifelse(daynum>=(daynum_bins[8]-3.5)&
+                                     daynum<(daynum_bins[9]-3.5),
+                                   daynum_bins[8],
+                                   ifelse(daynum>=(daynum_bins[9]-3.5)&
+                                     daynum<(daynum_bins[10]-3.5),
+                                   daynum_bins[9],
+                                   ifelse(daynum>=(daynum_bins[10]-3.5)&
+                                     daynum<(daynum_bins[11]-3.5),
+                                   daynum_bins[10],
+                                   ifelse(daynum>=(daynum_bins[11]-3.5)&
+                                     daynum<(daynum_bins[12]-3.5),
+                                   daynum_bins[11],
+                                   ifelse(daynum>=(daynum_bins[12]-3.5)&
+                                     daynum<(daynum_bins[13]-3.5),
+                                   daynum_bins[12],
+                                   ifelse(daynum>=(daynum_bins[13]-3.5)&
+                                     daynum<(daynum_bins[14]-3.5),
+                                   daynum_bins[13],
+                                   ifelse(daynum>=(daynum_bins[14]-3.5)&
+                                     daynum<(daynum_bins[15]-3.5),
+                                   daynum_bins[14],
+                                   ifelse(daynum>=(daynum_bins[15]-3.5)&
+                                     daynum<(daynum_bins[16]-3.5),
+                                   daynum_bins[15], daynum_bins[16])
+                                   )))))))))))))))  
 ```
 
-# Step 4. Summarize and view the data:
 
 a) Plotting epi P data...
 
 ```{r}
-ggplot(data=EFL_P_water, 
+ggplot(data=HL_nutr2, 
        aes(x=daynum,y=Epi_TotP_mgL)) + 
   geom_point(aes(shape=as.factor(Yr)))+
   labs(title="Epilimnion (<8m), East Fork Lake", #plot title
@@ -141,17 +219,17 @@ ggplot(data=EFL_P_water,
        shape="Year",
        caption="White highlight indicates CyanoHAB season.
        Red dashed line indicates moving-average regression.") + 
-  ylim(0, max(EFL_P_water$Epi_TotP_mgL)) +
-  scale_x_continuous(breaks = seq(0, max(EFL_P_water$daynum), #places axis tick marks
+  ylim(0, max(HL_nutr2$Epi_TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(HL_nutr2$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   #scale_color_continuous(name="Year")+
   geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=188, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=238, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 Epi data plotted.
@@ -159,7 +237,7 @@ Epi data plotted.
 b) Plotting hypo P data...
 
 ```{r}
-ggplot(data=subset(EFL_P_water, Yr>=2012), 
+ggplot(data=subset(HL_nutr2, Yr>=2012), 
        aes(x=daynum,y=Hypo_TotP_mgL)) + 
   geom_point(aes(shape=as.factor(Yr)))+
   labs(title="Hypolimnion (>14m), East Fork Lake", #plot title
@@ -168,30 +246,30 @@ ggplot(data=subset(EFL_P_water, Yr>=2012),
        shape="Year",
        caption="White highlight indicates CyanoHAB season.
        Red dashed line indicates moving-average regression.") + 
-  ylim(0, max(EFL_P_water$Hypo_TotP_mgL)) +
-  scale_x_continuous(breaks = seq(0, max(EFL_P_water$daynum), #places axis tick marks
+  ylim(0, max(HL_nutr2$Hypo_TotP_mgL)) +
+  scale_x_continuous(breaks = seq(0, max(HL_nutr2$daynum), #places axis tick marks
                                   by=30)) + #every 30 days (1 month) - CHANGE AS
   # NEEDED
   theme_classic()+
   #scale_color_continuous(name="Year")+ changed to factor no longer color
   geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=188, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=238, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 c) Plotting hypo: epi total P...
 
 ```{r}
-EFL_P_ratio <- EFL_P_water %>%
-  select(Yr, daynum, HE_ratio_TotP_mgL) #select only the 
+EFL_P_ratio <- HL_nutr2 %>%
+  select(Yr, daynum, HE_ratio_TotP_ugL) #select only the 
 
 fig<- plot_ly(x=EFL_P_ratio$Yr, #creates 3D plot with year as x axis
                y=EFL_P_ratio$daynum, #day of year as y axis
-               z=EFL_P_ratio$HE_ratio_TotP_mgL, #P_hypo:P_epi as z axis
+               z=EFL_P_ratio$HE_ratio_TotP_ugL, #P_hypo:P_epi as z axis
                type="scatter3d", mode="markers", #values as points
-               color=EFL_P_ratio$HE_ratio_TotP_mgL) %>% #colors points by value
+               color=EFL_P_ratio$HE_ratio_TotP_ugL) %>% #colors points by value
   layout(scene=list(xaxis=list(title="Year", tickfont=list(size=12)),
                     yaxis=list(title="Day of Year", tickfont=list(size=12)),
                     zaxis=list(title="Total P hypo:epi", tickfont=list(size=12))
@@ -203,5 +281,5 @@ fig #save image mannually
 # Step 5. Save the new data file:
 
 ```{r}
-write.csv(EFL_P_ratio, file="Cleaned_data/TotalP_water_EFL.csv")
+write.csv(HL_nutr2, file="Cleaned_data/HarshaLake_nutr.csv")
 ```

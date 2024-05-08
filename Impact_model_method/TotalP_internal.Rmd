@@ -1,7 +1,7 @@
 ---
 title: "TotalP_internal.Rmd"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2023-08-25'
+date: '2024-05-08'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -27,7 +27,7 @@ Packages loaded.
 b) loading dependent data...
 
 ```{r}
-waterP<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) 
+nutr<- read.csv(file="Cleaned_data/HarshaLake_nutr.csv", header=TRUE) 
 # original water chemistry data file which has P concentrations
 EpiVol<- read.csv(file="Cleaned_data/EpiVolume.csv", header=TRUE)
 # output data file with change in epi volume calculations
@@ -36,6 +36,79 @@ EpiVol<- read.csv(file="Cleaned_data/EpiVolume.csv", header=TRUE)
 # Step 2. Define and filter the data:
 
 a) defining and filtering the P concentration data...
+
+```{r}
+### calculate the lake surface area ###
+LSA<- 7.9 #sqkm for Harsha Lake surface area
+ALD<- 4.6 #average depth in m for Harsha Lake
+MLD<- 32.8# maximum depth in m for Harsha Lake  
+sqkm_sqm<- 1000000 #conversion factor for sqkm to sqm
+HLD<- (18.3 - 10) #max hypo depth minus min hypo depth near buoy
+Hypo_vol_m3<- LSA*sqkm_sqm*HLD #estimated volume of hypo
+L_m3<- 0.001 #conversion factor from liters to m^3
+ug_kg<- 0.000000001 #conversion factor from ug to kg
+return_obs<- 7 #number of days between observations
+cyanoHABseason<- (258-152) #number of days in cyanoHAB season
+
+### reformat date ###
+nutr<- nutr %>%
+  mutate(sampledate=as.Date(sampledate, 
+                            format="%Y-%m-%d",origin="1899-12-30")) #format as Date
+
+### calculate internal loads ###
+nutr2<- nutr %>%
+  mutate(intload_P_ug=hypo_TP_ugL*L_m3*Hypo_vol_m3,
+         intload_N_ug=hypo_TN_ugL*L_m3*Hypo_vol_m3)
+intload<- nutr2 %>%
+  group_by(Yr) %>%
+  mutate(intload_P_kgday=((intload_P_ug*ug_kg) - lag((intload_P_ug*ug_kg), n=1)/return_obs),
+         intload_N_kgday=((intload_N_ug*ug_kg) - lag((intload_N_ug*ug_kg), n=1)/return_obs)) %>%
+  ungroup()
+```
+
+Internal loads calculated.
+
+# Step 3. View and Summarize the data:
+
+```{r}
+### plot internal loads ###
+
+
+### summarize by year ###
+intload_sum<- intload %>%
+  group_by(Yr) %>%
+  summarize(Yr_totN_kgyr=sum(intload_P_kgday*return_obs, na.rm=TRUE),
+            meanTN_kgday=mean(intload_P_kgday, na.rm=TRUE),
+            se_TN_kgday=(sd(intload_P_kgday, na.rm=TRUE)/sqrt(length(intload_P_kgday))),
+            Yr_totP_kgyr=sum(intload_N_kgday*return_obs, na.rm=TRUE),
+            meanTP_kgday=mean(intload_N_kgday, na.rm=TRUE),
+            se_TP_kgday=(sd(intload_N_kgday, na.rm=TRUE)/sqrt(length(intload_N_kgday))))
+intload_sum
+```
+
+Annual and daily average total P and total N from external loading calculated.
+
+
+# Step 4. Save the data as a new data file:
+
+```{r}
+write.csv(intload, file="Cleaned_data/TotalP_allint.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Old Code ####
 
 ```{r}
 waterP2<- waterP %>%

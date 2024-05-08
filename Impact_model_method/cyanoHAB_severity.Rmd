@@ -28,114 +28,111 @@ Packages loaded.
 b) loading the chlorophyll-a data...
 
 ```{r}
-Chl<- read.csv(file="Original_data/EFL_chem.csv", header=TRUE) #has chl data
+Chl<- read.csv(file="Original_data/HarshaLake_Chla.csv", header=TRUE) #has chl data
 ```
 
 Chlorophyll-a data loaded. 
 
-c) loading the phytoplankton data...
+c) loading the cyanoHAB severity data...
 
 ```{r}
-phyto<-read.csv(file="Original_data/EFL_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+cyanos<-read.csv(file="Cleaned_data/HarshaLake_cyanos.csv", header=TRUE) #has the phytoplankton community dataset
 ```
 
-Phytoplankton community data loaded. 
+Data loaded. 
 
-d) loading the Secchi depth data...
+# Step 2. Define and reformat data:
 
-```{r}
-Secchi<- read.csv(file="Original_data/EFL_Secchi.csv") #has Secchi depth data
-```
-
-# Step 2. Define and filter data:
-
-a) defining and filtering data for total algal biomass (as Chl-a)...
+a) defining and reformatting Chl-a data...
 
 ```{r}
-Chl<- reshape(Chl, idvar=c("Date", "depth_ft"), 
-               timevar="Analyte", 
-               direction="wide") #reshape to wide
-EFL_Chl<- Chl %>%
+### identify the labels used for fields ###
+colnames(Chl) #identify labels for fields to filter
+unique(Chl$id) #determine the label for the site
+unique(Chl$Analyte) #determine the label for Chl-a
+unique(Chl$Unit) #determine the label for units
+head(Chl$Date) #determine format for sample date
+unique(Chl$depth_ft) #determine the depth most data was collected
+ft_m <- 0.3048 #conversion factor from feet to meter
+
+### filter and reformat Chla data ###
+HL_Chl<- Chl %>%
   mutate(sampledate=as.Date(Date, format="%m/%d/%Y", 
                             origin="1899-12-30"), #tells R to format field as Date
-         Chla_ugL=Value.CHLA,
-         Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>% #renames field to common name
-  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
-```
+         Chla_ugL=Value,#add units to field with Chla data
+         depth_m=depth_ft*ft_m) %>% #convert units
+  filter(id=="BUO") %>% #filter for site
+  select(sampledate, depth_m, Chla_ugL)
 
-Chl-a data defined and filtered. 
+### determine which depth to select Chl-a values ###
+stem(HL_Chl$depth_m)
 
-b) defining and filtering data for cyanobacteria density (CD)...
-
-```{r}
-EFL_cyanoRB<- phyto %>%
-  mutate(sampledate=as.Date(Collection_Date, format="%m/%d/%Y",
-                            origin="1899-12-30"),
-         CD_cellsmL=as.numeric(TaxaSpecific_Cell_Density_cellsmL)) %>% #tells R to format field as Datey
-  filter(SiteID=="BUO", #filter for Lake Mendota data
-         Division=="Cyanobacteria") %>% #filter for cyanobacteria data
-  select(sampledate, Depth_ft, CD_cellsmL) %>% 
-  group_by(sampledate) %>% #group all observations by sample date
-  summarize(CD_cellsmL=sum(CD_cellsmL, na.rm=TRUE)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+### filter the Chla data for selected depth ###
+HL_Chl<- HL_Chl %>%
+  filter(depth_m==0,#filter for top layer Chla values
+         !is.na(Chla_ugL)) %>% #filter out NAs
+  select(sampledate, Chla_ugL) #selects only fields of interest
+HL_Chl<- HL_Chl %>%
+  group_by(sampledate) %>%
+  summarize(Chla_ugL=mean(Chla_ugL, na.rm=TRUE)) %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
          daynum=as.numeric(format(sampledate, "%j")))  #adds field with day
 ```
 
-CD data defined and filtered.
-
-c) defining and filtering the Secchi depth data...
+b) defining and reformatting cyanobacteria data...
 
 ```{r}
-in_m<- 1*0.0254 #conversion factor from inches to meters
-EFL_Secchi<- Secchi %>%
-  mutate(sampledate=as.Date(Date, format="%m/%d/%Y",
-                            origin="1899-12-30")) %>% #tells R to format field as Date
-  filter(id=="EFL", depth_ft==0) %>%  #filter for specific site and depth
-  select(sampledate, Analyte, Value) #select fields needed
-EFL_Secchi<- reshape(EFL_Secchi, idvar=c("sampledate"), 
-               timevar="Analyte", 
-               direction="wide") #reshape to wide
-EFL_Secchi <- EFL_Secchi %>%
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
-         daynum=as.numeric(format(sampledate, "%j")), #adds field with day
-         Secchi_m=as.numeric(Value.Secchi*in_m),#adds field with Secchi in m
-         Value.Secchi=NULL) #remove extra field
+### identify the labels used for fields ###
+head(cyanos$sampledate)#determine format for sample date
+
+### reformat data ###
+HL_cyanos<- cyanos %>%
+  mutate(sampledate=as.Date(sampledate, format="%Y-%m-%d",
+                            origin="1899-12-30"), #tells R to format field as Date
+         Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
+         daynum=as.numeric(format(sampledate, "%j")))
 ```
+
+Data defined and filtered. 
 
 # Step 3. View the data available:
 
 a) Plotting Chl-a data available...
 
 ```{r}
-ggplot(data=EFL_Chl, aes(x=sampledate, y=Chla_ugL)) + #plots Chl-a across date
+### plot Chla across date ###
+ggplot(data=HL_Chl, aes(x=sampledate, y=Chla_ugL)) + #plots Chl-a across date
   geom_point() + #adds points at observations
   geom_line() + #adds lines between 
   theme_classic(base_size=12) +
-  labs(x="Date", y="Total Chl-a (ug/L)")
-ggplot(data=EFL_Chl, #create limno plot with depth inverse on y-axis
+  labs(x="Date", y="Chlorophyll-a (ug/L)")
+
+### plot Chla across day number ###
+ggplot(data=HL_Chl, #create limno plot with depth inverse on y-axis
        aes(x=daynum, #sampled date as x-axis
            y=Chla_ugL,
            color=Chla_ugL)) + #and data points colored by temperature
   geom_point() + #plot points
   facet_wrap(~Yr) + #make separate plot for each year
   theme_classic() +
-  labs(x="Day of Year", y="Chl-a (ug/L)") 
+  labs(x="Day of Year", y="Chlorophyll-a (ug/L)") 
 ```
 
-Chl-a data plotted. Chl-a available from 2008 to 2012, note NAs in 2017.
+Chl-a data plotted. 
 
 b) Plotting CD data available...
 
 ```{r}
-ggplot(data=subset(EFL_cyanoRB, Yr>=2015), aes(x=sampledate, y=CD_cellsmL/1000))+
+### plot CD across date ###
+ggplot(data=HL_cyanos, aes(x=sampledate, y=CD_cellsmL/1000))+
   geom_point() +  #point plot 
   geom_line() + #lines between points
   theme_classic(base_size=12)+
+  theme(axis.text.x = element_text(angle=45))+
   labs(x="Date", y="Cyanobacteria Density (10^3 cells/mL)")
 
-ggplot(data=EFL_cyanoRB, #create limno plot with depth inverse on y-axis
+### plot CD across day number ### 
+ggplot(data=HL_cyanos, #create limno plot with depth inverse on y-axis
        aes(x=daynum, #sampled date as x-axis
            y=CD_cellsmL,
            color=CD_cellsmL)) + #and data points colored by temperature
@@ -143,100 +140,145 @@ ggplot(data=EFL_cyanoRB, #create limno plot with depth inverse on y-axis
   facet_wrap(~Yr) + #make separate plot for each year
   theme_classic() +
   labs(x="Day of Year", y="Cyano Density (cells/mL)") 
-  
 ```
 
-CRB and CD data plotted. 
+CD data plotted. 
 
-c) plotting Secchi depth and cyanobacteria relative biovolume to get cyanoHAB
-season...
+# Step 4. Bin observations into same day number each year:
 
+a) binning Chla day numbers...
 ```{r}
-EFL_Secchi_fig<- EFL_Secchi %>%
-  select(sampledate, Secchi_m) #select fields of interest
-EFL_cyanoRB_fig<- EFL_cyanoRB %>%
-  select(sampledate, CD_cellsmL) #selects fields of interest
-Figure_data<- merge(EFL_Secchi_fig, EFL_cyanoRB_fig, by=c("sampledate"),
-                       all=TRUE) #merges data frames and keeps all records
-Figure_data<- Figure_data %>%
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
-         daynum=as.numeric(format(sampledate, "%j")))
+### define years of study ###
+Yr<- c(2015, 2017, 2018, 2019) #define year start of study period
+HL_Chl2<- HL_Chl %>%
+  filter(Yr==2015|Yr==2017|Yr==2018|Yr==2019,
+         daynum>=(152-7) & daynum<=(258+7))
+HL_cyanos2<- HL_cyanos %>%
+  filter(daynum>=(152-7) & daynum<=(258+7))
 
-a <- ggplot(data=Figure_data, aes(x=daynum, y=Secchi_m)) + #plots SD across day
-  geom_point() + #plots observations as points
-  theme_classic(base_size=12) +
-  geom_smooth() + #adds regression curve
-  labs(x="Day of year", y="Secchi depth (m)") 
-#  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-#           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-#  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-#           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
-b <- ggplot(data=Figure_data, aes(x=daynum, y=CD_cellsmL)) + #plots cyano RB across day
-  geom_point() + #plots observations as points
-  theme_classic(base_size=12) +
-  geom_smooth() + #adds regression curve
-  labs(x="Day of year", 
-       y="Cyanobacteria density (cells/mL))") 
-#  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-#           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
-#  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-#           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
-fig<- a / b #plot a over plot b
-fig #print out plot
-```
+### define the observation return period ####
+hist(HL_Chl2$daynum, breaks=14, main="Chl-a measurements") #see when most observations are made
+hist(HL_cyanos2$daynum, breaks=14, main="Cyanobacteria density measurements")
 
-Data plotted.
-
-# Step 4. Bin observations into same daynumber each year:
-
-a) defining expected observation frequencies...
-```{r}
-Yr<- seq(from=2015, #define year start of study period
-             to=2017, #define year end of study period
-             by=1) #creates a sequence every 1 year
-Yr
-daynum_bins<- seq(from=181, #define date start of CyanoHAB season
-                  to=245, #define date end of CyanoHAB season
-                  by=1) #creates a sequence every 1 day 
+daynum_bins<- seq(from=152, #define date start of CyanoHAB season
+                  to=258, #define date end of CyanoHAB season
+                  by=7) #creates a sequence every  days 
 daynum_bins #prints the expected observation dates of data
-EFL_phyto<- data.frame(Yr=rep(Yr, each=65),  #create data frame with expected yr
-                       daynum_bin=rep(daynum_bins, times=3)) #and day number
-EFL_phyto #prints data frame
+
+### bin Chla sample dates to expected observation dates ###
+HL_Chl2 <- HL_Chl2  %>% 
+   mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-3.5), #if observation is <= bin 2 
+                daynum_bins[1], #return bin 1
+                ifelse(daynum>=(daynum_bins[2]-3.5) & #otherwise...
+                         daynum<(daynum_bins[3]-3.5),#if observation is > bin 2  and <= bin 3 
+              daynum_bins[2], #label bin 2
+              ifelse(daynum>=(daynum_bins[3]-3.5)& #otherwise...
+                       daynum<(daynum_bins[4]-3.5),
+                     daynum_bins[3], 
+                     ifelse(daynum>=(daynum_bins[4]-3.5)&
+                              daynum<(daynum_bins[5]-3.5), 
+                            daynum_bins[4], 
+                            ifelse(daynum>=(daynum_bins[5]-3.5)&
+                                     daynum<(daynum_bins[6]-3.5),
+                                   daynum_bins[5],
+                                   ifelse(daynum>=(daynum_bins[6]-3.5)&
+                                     daynum<(daynum_bins[7]-3.5),
+                                   daynum_bins[6],
+                                   ifelse(daynum>=(daynum_bins[7]-3.5)&
+                                     daynum<(daynum_bins[8]-3.5),
+                                   daynum_bins[7],
+                                   ifelse(daynum>=(daynum_bins[8]-3.5)&
+                                     daynum<(daynum_bins[9]-3.5),
+                                   daynum_bins[8],
+                                   ifelse(daynum>=(daynum_bins[9]-3.5)&
+                                     daynum<(daynum_bins[10]-3.5),
+                                   daynum_bins[9],
+                                   ifelse(daynum>=(daynum_bins[10]-3.5)&
+                                     daynum<(daynum_bins[11]-3.5),
+                                   daynum_bins[10],
+                                   ifelse(daynum>=(daynum_bins[11]-3.5)&
+                                     daynum<(daynum_bins[12]-3.5),
+                                   daynum_bins[11],
+                                   ifelse(daynum>=(daynum_bins[12]-3.5)&
+                                     daynum<(daynum_bins[13]-3.5),
+                                   daynum_bins[12],
+                                   ifelse(daynum>=(daynum_bins[13]-3.5)&
+                                     daynum<(daynum_bins[14]-3.5),
+                                   daynum_bins[13],
+                                   ifelse(daynum>=(daynum_bins[14]-3.5)&
+                                     daynum<(daynum_bins[15]-3.5),
+                                   daynum_bins[14],
+                                   ifelse(daynum>=(daynum_bins[15]-3.5)&
+                                     daynum<(daynum_bins[16]-3.5),
+                                   daynum_bins[15], daynum_bins[16])
+                                   )))))))))))))))  
+
+HL_cyanos2 <- HL_cyanos2  %>% 
+   mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-3.5), #if observation is <= bin 2 
+                daynum_bins[1], #return bin 1
+                ifelse(daynum>=(daynum_bins[2]-3.5) & #otherwise...
+                         daynum<(daynum_bins[3]-3.5),#if observation is > bin 2  and <= bin 3 
+              daynum_bins[2], #label bin 2
+              ifelse(daynum>=(daynum_bins[3]-3.5)& #otherwise...
+                       daynum<(daynum_bins[4]-3.5),
+                     daynum_bins[3], 
+                     ifelse(daynum>=(daynum_bins[4]-3.5)&
+                              daynum<(daynum_bins[5]-3.5), 
+                            daynum_bins[4], 
+                            ifelse(daynum>=(daynum_bins[5]-3.5)&
+                                     daynum<(daynum_bins[6]-3.5),
+                                   daynum_bins[5],
+                                   ifelse(daynum>=(daynum_bins[6]-3.5)&
+                                     daynum<(daynum_bins[7]-3.5),
+                                   daynum_bins[6],
+                                   ifelse(daynum>=(daynum_bins[7]-3.5)&
+                                     daynum<(daynum_bins[8]-3.5),
+                                   daynum_bins[7],
+                                   ifelse(daynum>=(daynum_bins[8]-3.5)&
+                                     daynum<(daynum_bins[9]-3.5),
+                                   daynum_bins[8],
+                                   ifelse(daynum>=(daynum_bins[9]-3.5)&
+                                     daynum<(daynum_bins[10]-3.5),
+                                   daynum_bins[9],
+                                   ifelse(daynum>=(daynum_bins[10]-3.5)&
+                                     daynum<(daynum_bins[11]-3.5),
+                                   daynum_bins[10],
+                                   ifelse(daynum>=(daynum_bins[11]-3.5)&
+                                     daynum<(daynum_bins[12]-3.5),
+                                   daynum_bins[11],
+                                   ifelse(daynum>=(daynum_bins[12]-3.5)&
+                                     daynum<(daynum_bins[13]-3.5),
+                                   daynum_bins[12],
+                                   ifelse(daynum>=(daynum_bins[13]-3.5)&
+                                     daynum<(daynum_bins[14]-3.5),
+                                   daynum_bins[13],
+                                   ifelse(daynum>=(daynum_bins[14]-3.5)&
+                                     daynum<(daynum_bins[15]-3.5),
+                                   daynum_bins[14],
+                                   ifelse(daynum>=(daynum_bins[15]-3.5)&
+                                     daynum<(daynum_bins[16]-3.5),
+                                   daynum_bins[15], daynum_bins[16])
+                                   )))))))))))))))
+HL_cyanos2<- HL_cyanos2[-c(1,11),] #remove the duplicate records
 ```
 
-Defined expected observation frequency.
+Observed dates assigned into closest expected dates.  
 
-Observed dates assigned to closest expected dates.
-
-c) merging the data frames...
-Note, R only merges two data frames at one time.
+# Step 5. Merge, check for NAs, interpolate missing data values as needed:
 
 ```{r}
-EFL_Chl_3yr<- EFL_Chl %>%
-  filter(Yr>=2015 & Yr <=2017) #filters data for target years
-EFL_cyanoRB_3yr<- EFL_cyanoRB %>%
-  filter(Yr>=2015 & Yr <=2017) #filters data for target years
+### merging the two data frames ###
+HL_cyanoHAB<- merge(HL_Chl2, HL_cyanos2, by=c("Yr", "daynum_bin"),
+                    all=TRUE)
 
-EFL_phyto<- merge(EFL_phyto, #x data frame
-                 EFL_Chl_3yr, #y data frame
-                 by.x=c("Yr","daynum_bin"),
-                 by.y=c("Yr","daynum"),
-                 all.x=TRUE) #define the key fields
-EFL_phyto<- merge(EFL_phyto, #x data frame
-                 EFL_cyanoRB_3yr, #y data frame
-                 by.x=c("Yr","daynum_bin"),
-                 by.y=c("Yr","daynum"),
-                 all.x=TRUE) #define the key fields
-```
-
-Data merged.
-
-# Step 5. Check for NAs, interpolate missing data values as needed:
-
-```{r}
-EFL_phyto2<- EFL_phyto[1:186, ] #remove last NA's
-EFL_phyto2$Chla_ugL<- na.approx(EFL_phyto2$Chla_ugL) #interpolates NAs
-EFL_phyto2$CD_cellsmL<- na.approx(EFL_phyto2$CD_cellsmL) #interpolates NAs
+### check for NAs and linearly approximate to fill data gaps ###
+summary(HL_cyanoHAB$Chla_ugL) #check for NAs
+HL_cyanoHAB$Chla_ugL<- na.approx(HL_cyanoHAB$Chla_ugL) #interpolates NAs
+summary(HL_cyanoHAB$Chla_ugL) #check for NAs
+summary(HL_cyanoHAB$CD_cellsmL) #check for NAs
+#HL_cyanoHAB$CD_cellsmL<- na.approx(HL_cyanoHAB$CD_cellsmL) #interpolates NAs
 ```
 
 Missing values interpolated.
@@ -244,5 +286,5 @@ Missing values interpolated.
 # Step 6. Save as new data file:
 
 ```{r}
-write.csv(EFL_phyto2, file="Cleaned_data/cyanoHAB_severity_EFL.csv")
+write.csv(HL_cyanoHAB, file="Cleaned_data/cyanoHAB_severity.csv")
 ```
