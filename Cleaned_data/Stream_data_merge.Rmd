@@ -1,0 +1,166 @@
+---
+title: "Stream_P_datamerge"
+author: "Lauren Knose"
+date: "2024-04-25"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this package is to take original stream data and merge into a single data file.
+
+# Step 1. Load the data and packages needed:
+
+a) Loading the packages needed...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(data.table) #needed for matching values from 2 data frames
+library(ggplot2) #needed for plotting
+```
+
+Packages loaded.
+
+
+b) Loading the data needed...
+
+```{r}
+PB_1<- read.csv(file="Original_data/USGS_PheasantBranch_P.csv") #load USGS data, Pheasant Branch
+PB_2<- read.csv(file="Original_data/WIDNR_PheasantBRanch_P.csv") #load WIDNR data, Pheasant Branch
+
+SMC_1<- read.csv(file="Original_data/USGS_SixMileCreek_P.csv") #load USGS data, Six Mile Creek
+SMC_2<- read.csv(file="Original_data/WIDNR_SixMileCreek_P.csv") #load WIDNR data, Six Mile Creek
+
+YR_1<- read.csv(file="Original_data/USGS_YaharaRiver_P.csv") #load USGS data, Yahara River
+YR_2<- read.csv(file="Original_data/WIDNR_YaharaRiver_P.csv") #load WIDNR data, Yahara River
+```
+
+# Step 2. Clean and reformat the data:
+
+a) reformatting the data for inflow A...
+
+```{r}
+### identify and rename column names in source 1 ###
+colnames(PB_1) #print column names
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanSRP_mgL']<- 'SRP_mgL' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanSRP_lbday']<- 'SRP_lbday' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanTotP_lbday']<- 'TotP_lbday' #rename column
+colnames(PB_1)[colnames(PB_1) =='USGS_MeanTotP_mgL']<- 'TotP_mgL' #rename column
+colnames(PB_1)[colnames(PB_1) =='datetime']<- 'sampledate' #rename column
+colnames(PB_1)[colnames(PB_1) =='Site_Name']<- 'Site' #rename column
+
+PB_1<- PB_1 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+colnames(PB_1) #print column names to check they were changed
+
+### identify and rename column names in source 2 ###
+colnames(PB_2)
+colnames(PB_2)[colnames(PB_2) =='PO4_mgL']<- 'SRP_mgL' #rename column
+PB_2<- PB_2 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+PB_2$X=NULL #removed empty field
+PB_2$X.1=NULL #removed empty field
+PB_2$X.2=NULL #removed empty field
+colnames(PB_2) #reprint 
+```
+
+Inflow A reformatted.
+
+b) reformatting the data for inflow B...
+
+```{r}
+### identify and rename column names in source 1 ###
+colnames(SMC_1) #print column names
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanSRP_mgL']<- 'SRP_mgL' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanSRP_lbday']<- 'SRP_lbday' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanTotP_lbday']<- 'TotP_lbday' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='USGS_MeanTotP_mgL']<- 'TotP_mgL' #rename column
+colnames(SMC_1)[colnames(SMC_1) =='datetime']<- 'sampledate' #rename column
+SMC_1<- SMC_1 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+colnames(SMC_1) #print column names to check they were changed
+
+### identify and rename column names in source 2 ###
+colnames(SMC_2)
+colnames(SMC_2)[colnames(SMC_2) =='DissP_PO4_mgL']<- 'SRP_mgL' #rename column
+SMC_2<- SMC_2 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+SMC_2$X=NULL #removed empty field
+SMC_2$X.1=NULL #removed empty field
+SMC_2$X.2=NULL #removed empty field
+SMC_2$X.3=NULL #removed empty field
+colnames(SMC_2) #reprint 
+```
+
+Inflow B data reformatted.
+
+c) reformatting the data for inflow C...
+
+```{r}
+### identify and rename column names in source 1 ###
+colnames(YR_1) #print column names
+colnames(YR_1)[colnames(YR_1) =='USGS_MeanSRP_mgL']<- 'SRP_mgL' #rename column
+colnames(YR_1)[colnames(YR_1) =='USGS_MeanSRP_lbday']<- 'SRP_lbday' #rename column
+colnames(YR_1)[colnames(YR_1) =='USGS_MeanTotP_lbday']<- 'TotP_lbday' #rename column
+colnames(YR_1)[colnames(YR_1) =='USGS_MeanTotP_mgL']<- 'TotP_mgL' #rename column
+colnames(YR_1)[colnames(YR_1) =='datetime']<- 'sampledate' #rename column
+YR_1<- YR_1 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%m/%d/%Y"))
+colnames(YR_1) #print column names to check they were changed
+
+### identify and rename column names in source 2 ###
+colnames(YR_2)
+YR_2<- YR_2 %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%Y-%m-%d"))
+YR_2$X=NULL #removed empty field
+colnames(YR_2) #reprint 
+```
+
+Inflow C data reformatted.
+
+# Step 3. Combine data for each source:
+
+a) combine data for stream 1...
+
+```{r}
+nm2 <- intersect(names(PB_1)[-1], names(PB_2)[-1]) #save the shared column names as list
+PB <- copy(PB_1) #create new data frame with data from source 1
+setDT(PB)[PB_2, (nm2) := Map(fcoalesce, mget(nm2), 
+       mget(paste0('i.', nm2))), on = .(sampledate)] #add values from source 2 if sample date is the same
+sum(is.na(PB_1$TotP_mgL)) - sum(is.na(PB$TotP_mgL))#count number of NAs removed by merging the two sources
+```
+
+Stream 1 data combined.
+
+b) combining data for stream 2...
+
+```{r}
+nm2 <- intersect(names(SMC_1)[-1], names(SMC_2)[-1]) #save the shared column names as list
+SMC <- copy(SMC_1) #create new data frame with data from source 1
+setDT(SMC)[SMC_2, (nm2) := Map(fcoalesce, mget(nm2),
+       mget(paste0('i.', nm2))), on = .(sampledate)] #add values from source 2 if sample date is the same
+sum(is.na(SMC_1$TotP_mgL)) - sum(is.na(SMC$TotP_mgL))#count number of NAs removed by merging the two sources
+```
+
+Stream 2 data combined.
+
+c) combining data for stream 3...
+
+```{r}
+nm2 <- intersect(names(YR_1)[-1], names(YR_2)[-1]) #save the shared column names as list
+nm2<- c("sampledate", "SRP_mgL", "TotP_mgL") #had to add sampledate manually for some reason
+YR <- copy(YR_1) #create new data frame with data from source 1
+setDT(YR)[YR_2, (nm2) := Map(fcoalesce, mget(nm2),
+       mget(paste0('i.', nm2))), on = .(sampledate)] #add values from source 2 if sample date is the same
+sum(is.na(YR_1$TotP_mgL)) - sum(is.na(YR$TotP_mgL))#count number of NAs removed by merging the two sources
+```
+
+# Step 4. Save data in Cleaned_data folder
+
+```{r}
+write.csv(PB, file="Cleaned_data/PheasantBranch_P.csv")
+write.csv(SMC, file="Cleaned_data/SixMileCreek_P.csv")
+write.csv(YR, file="Cleaned_data/YaharaRiver_P.csv")
+```
+
+Reformated data saved.
