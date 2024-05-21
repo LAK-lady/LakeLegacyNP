@@ -7,10 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 The purpose of this package is to take original stream data and merge into a single data file
 
 # Step 1. Load the data and packages needed:
@@ -20,8 +16,6 @@ a) Loading the packages needed...
 ```{r}
 library(dplyr) #needed for transforming data
 library(data.table) #needed for matching values from 2 data frames
-library(ggplot2) #needed for plotting
-
 ```
 
 Packages loaded.
@@ -88,8 +82,6 @@ SMC_2$X.3=NULL #removed empty field
 colnames(SMC_2) #reprint 
 ```
 
-
-
 Data reformatted.
 
 # Step 3. Combine data for each source:
@@ -110,11 +102,11 @@ Stream 1 data combined.
 b) combining data for stream 2...
 
 ```{r}
-nm2 <- intersect(names(PB_1)[-1], names(PB_2)[-1])
-PB <- copy(PB_1)
-setDT(PB)[PB_2, (nm2) := Map(fcoalesce, mget(nm2),
+nm2 <- intersect(names(SMC_1)[-1], names(SMC_2)[-1])
+SMC <- copy(SMC_1)
+setDT(SMC)[SMC_2, (nm2) := Map(fcoalesce, mget(nm2),
        mget(paste0('i.', nm2))), on = .(sampledate)]
-sum(is.na(PB_1$TotP_mgL))
-sum(is.na(PB$TotP_mgL))
+sum(is.na(SMC_1$TotP_mgL))
+sum(is.na(SMC$TotP_mgL))
 ```
 
