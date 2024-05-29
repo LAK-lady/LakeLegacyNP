@@ -49,11 +49,21 @@ sort(unique(data$depth)) #identify the depths of measurements
 
 b) Filter and transform epilimnion P data...
 ```{r}
+### filter data to epilimnion ###
 Epi_P<- ME_P %>%
   filter(Depth_m < 4) %>% #for observations taken at or above 1.5 m
   group_by(sampledate) %>% #group all observations in same sample date
   summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE)) #calculates mean for all depths in epi 
 
+df<- merge(Epi_P, streams, by="sampledate")
+
+ggplot(df, aes(x=sampledate)) +
+  geom_point(epiP, aes( y=Epi_TotP_mgL))+
+  geom_line(streams, aes(y=Flux))
+
+
+
+### interpolate missing data ###
 date_range<- seq( #creates a vector of sequence data
   min(Epi_P$sampledate), #starting at the first sample date
   max(Epi_P$sampledate), #ending at the last sample date
@@ -123,7 +133,7 @@ Me_P_water<- Me_P_water %>% #need to clean up
 a) Plotting epi P data...
 
 ```{r}
-ggplot(data=subset(Me_P_water, Yr>=2012), 
+epiP<- ggplot(data=subset(Me_P_water, Yr>=2012), 
        aes(x=daynum,y=Epi_TotP_mgL)) + 
   geom_point(aes(shape=as.factor(Yr)))+
   labs(title="Epilimnion (depth < 4 m), Lake Mendota, WI", #plot title
@@ -140,12 +150,15 @@ ggplot(data=subset(Me_P_water, Yr>=2012),
   #scale_color_continuous(name="Year")+
   geom_smooth(col="darkred", lty="dashed") + #adds loess curve (moving average regression model)
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=195, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=255, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+epiP #print figure
 ```
 
 Epi data plotted.
+
+
 
 b) Plotting hypo P data...
 
