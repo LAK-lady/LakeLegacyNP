@@ -37,8 +37,11 @@ a) defining and filtering data...
 ```{r}
 streams2<- streams %>%
   mutate(X=NULL, #remove index column
-         sampledate=as.Date(sampledate, origin="1899-12-30"),
-         Pstreams_kgday=allInflows_TotP_kgday) %>%#reformat date
+         sampledate=as.Date(sampledate,
+                            origin="1899-12-30",
+                            format="%Y-%m-%d")) %>%
+  filter(Site=="All") %>%
+  mutate(Pstreams_kgday=Flux) %>%#reformat date
   filter(daynum>=196 & daynum<=258) %>% #filter for the CyanoHAB season
   filter(Yr>=2012 & Yr<=2018) %>% #filter for the study period
   select(c("sampledate", "Pstreams_kgday")) #remove the extra columns
@@ -51,7 +54,7 @@ atm2<- atm %>%
   select(c("sampledate", "Patm_kgday")) #remove the extra columns
 ```
 
-Data defined
+Data defined.
 
 b) merging data...
 
