@@ -1,0 +1,334 @@
+---
+title: "TotalP_external_inflows.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-05-14'
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to calculate the external total P loading to Lake Mendota, from the three main inflows of Pheasant Branch (PB), Yahara River (YR), and Six-Mile Creek (SMC). 
+P_load (kg/day) = P concentration * flow rate
+
+
+# Step 1. Load the data and packages needed:
+
+a) Loading the packages needed...
+
+```{r}
+#install.packages(c("dplyr", "reshape2", "lubridate", "ggplot2", "ggbreak", "remotes")) #use if 1st time using packages
+#library(remotes) #use if 1st time using rloadest
+#remotes::install_github("USGS-R/smwrData") #use if 1st time using rloadest
+#remotes::install_github("USGS-R/smwrBase") #use if 1st time using rloadest
+#remotes::install_github("USGS-R/smwrGraphs") #use if 1st time using rloadest
+#remotes::install_github("USGS-R/smwrStats") #use if 1st time using rloadest
+#remotes::install_github("USGS-R/smwrQW") #use if 1st time using rloadest
+#remotes::install_github("USGS-R/rloadest") #use if 1st time using rloadest
+library(dplyr) #needed for transforming data
+library(ggplot2) #needed for plotting
+library(ggpubr) #needed to plot several graphs together
+library(rloadest) #needed to estimate daily concentrations from flow
+```
+
+Packages loaded.
+
+b) Loading the data needed...
+
+```{r}
+### load data for stream A ###
+PB_P_flow<- read.csv(file="Cleaned_data/PheasantBranch_P.csv")
+
+### load data for stream B ###
+SMC_P_flow<- read.csv(file="Cleaned_data/SixMileCreek_P.csv")
+
+### load data for stream C ###
+YR_P_flow<- read.csv(file="Cleaned_data/YaharaRiver_P.csv")
+```
+
+Total P data loaded.
+
+# Step 2. Reformat and transform the data:
+
+```{r}
+### define unit conversions ###
+lb_kg= 0.453592/1 #conversion factor from lb to kg (1lb = 0.453592 kg)
+cf_L= 1/0.0353147 #conversion factor from ft^3 to L (1 ft^2 = 28.3168 L)
+sec_day= 86400/1 #conversion factor from sec to day (86400 sec = 1 day)
+mg_kg= 1/1000000 #conversion factor from mg to kg (1,000,000 mg = 1 kg)
+
+### reformat data of stream A ###
+PB_P<- PB_P_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%Y-%m-%d"), #format date field
+         Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j")), #add day number field
+         Q_Lday=(Qout_cfs*cf_L*sec_day)) %>% #rename column for consistency across data frames
+  filter(!is.na(Q_Lday)) %>% #remove any NAs in flow rate
+  filter(!is.na(TotP_mgL)) %>% #remove any NAs in total P
+  filter(Q_Lday>=0) #remove any negative flow rates
+
+### reformat data of stream B ###
+SMC_P<- SMC_P_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%Y-%m-%d"),
+         Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j")), #add day number field
+        Q_Lday=(Qout_cfs*cf_L*sec_day)) %>% #rename column for consistency across data frames
+  filter(!is.na(Q_Lday)) %>% #remove any NAs in flow rate
+  filter(!is.na(TotP_mgL)) %>% #remove any NAs in total P 
+  filter(Q_Lday>=0) #removes negative flow rates
+
+### reformat data of stream C ###
+YR_P<- YR_P_flow %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30", format="%Y-%m-%d"),
+         Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j")), #add day number field
+         Q_Lday=(Qout_cfs*cf_L*sec_day)) %>% #rename column for consistency across data frames
+  filter(!is.na(Q_Lday)) %>% #remove any NAs in flow rate
+  filter(!is.na(TotP_mgL)) %>% #remove any NAs in total P
+  filter(Q_Lday>=0) #remove negative flow rates
+```
+
+Data defined and transformed for all inflows.
+
+# Step 3. Calculate daily P load for each inflow:
+
+a) check correlation between stream flow and total P:
+```{r}
+A<- ggplot(data=PB_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
+  geom_point() + 
+  labs(x= "log10(Flow rate) (L/day)", y= "log10(Total P) (mg/L)", title = "Pheasant Branch") +
+  geom_smooth()+
+  theme_classic()
+
+B<- ggplot(data=SMC_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
+  geom_point() + 
+  labs(x= "log10(Flow rate) (L/day)", y= "log10(Total P) (mg/L)", title = "Six Mile Creek") +
+  geom_smooth()+
+  theme_classic()
+
+C<- ggplot(data=YR_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
+  geom_point() + 
+  labs(x= "log10(Flow rate) (L/day)", y= "log10(Total P) (mg/L)", title = "Yahara River") +
+  geom_smooth()+
+  theme_classic()
+
+### display regression plots together ###
+SIfig8<-ggarrange(A,B,C, ncol=3, nrow=1) #prints plots together
+SIfig8 #Prints the figure
+ggsave(SIfig8, file="Products/SI_figure8_color.png") #save figure
+
+### print regression model results ###
+PB_flowP<- lm(log10(PB_P$TotP_mgL) ~ log10(PB_P$Q_Lday)*daynum, data=PB_P) #write the model using simple linear regression
+summary(PB_flowP) #print summary table for stream A
+
+SMC_flowP<- lm(log10(SMC_P$TotP_mgL) ~ log10(SMC_P$Q_Lday)* daynum, data=SMC_P) #write the model
+summary(SMC_flowP) #print summary table for stream B
+
+YR_flowP<- lm(log10(YR_P$TotP_mgL) ~ log10(YR_P$Q_Lday)*daynum, data=YR_P) #write the model
+summary(YR_flowP) #print summary table for stream C
+```
+
+b) estimating loads for stream A...
+
+```{r}
+### use rLOADEST package to model P load by flow ###
+PB_flowP2<- loadReg(formula= TotP_mgL ~ model(7), #total P concentration ~ ln(flow rate) - ln(centroid flow rate)
+                    data=PB_P, #data file
+                    flow="Qout_cfs", #name the field with flow rates
+                    dates="sampledate", #name the field with sample date
+                    conc.units = "mg/L", #define the units of the response measurements
+                    station="Pheasant Branch") #site name
+print(PB_flowP2, brief=FALSE, load.only=FALSE)
+ #print the output
+
+### use rLOADEST package to estimate daily P load ###
+PB_TotP_loads<- predLoad(PB_flowP2, newdata = PB_P, load.units="kg", by="day")
+
+### use rLOADEST package to print diagnostic plots ###
+par(mfrow=c(2,3))
+plot(PB_flowP2, which=1,set.up=FALSE)
+plot(PB_flowP2, which=2,set.up=FALSE)
+plot(PB_flowP2, which=3,set.up=FALSE)
+#plot(PB_flowP2, which=4,set.up=FALSE) #takes too long to plot...issue somewhere with package
+plot(PB_flowP2, which=5,set.up=FALSE)
+plot(PB_flowP2, which=6,set.up=FALSE)
+par(mfrow=c(1,1))
+
+### save as new data file ###
+write.csv(PB_TotP_loads, file="Cleaned_data/PB_TotP_loads.csv")
+```
+
+b) estimating loads for stream B...
+
+```{r}
+### use rLOADEST package to model P load by flow ###
+SMC_flowP2<- loadReg(formula= TotP_mgL ~ model(7), #total P concentration ~ ln(flow rate) - ln(centroid flow rate)
+                    data=SMC_P, #data file
+                    flow="Qout_cfs", #name the field with flow rates
+                    dates="sampledate", #name the field with sample date
+                    conc.units = "mg/L", #define the units of the response measurements
+                    station="Six Mile Creek") #site name
+print(SMC_flowP2, brief=FALSE, load.only=FALSE)
+ #print the output
+
+### use rLOADEST package to estimate daily P load ###
+SMC_TotP_loads<- predLoad(SMC_flowP2, newdata = SMC_P, load.units="kg", by="day")
+
+### use rLOADEST package to print diagnostic plots ###
+plot(SMC_flowP2, which=1,set.up=FALSE)
+plot(SMC_flowP2, which=2,set.up=FALSE)
+plot(SMC_flowP2, which=3,set.up=FALSE)
+#plot(SMC_flowP2, which=4,set.up=FALSE) #takes too long to plot...issue somewhere with package
+plot(SMC_flowP2, which=5,set.up=FALSE)
+plot(SMC_flowP2, which=6,set.up=FALSE)
+
+### save as new data file ###
+write.csv(SMC_TotP_loads, file="Cleaned_data/SMC_TotP_loads.csv")
+```
+
+c) estimating loads for stream C...
+
+```{r}
+### use rLOADEST package to model P load by flow ###
+YR_flowP2<- loadReg(formula= TotP_mgL ~ model(7), #total P concentration ~ ln(flow rate) - ln(centroid flow rate)
+                    data=YR_P, #data file
+                    flow="Qout_cfs", #name the field with flow rates
+                    dates="sampledate", #name the field with sample date
+                    conc.units = "mg/L", #define the units of the response measurements
+                    station="Yahara River") #site name
+print(YR_flowP2, brief=FALSE, load.only=FALSE)
+ #print the output
+
+### use rLOADEST package to estimate daily P load ###
+YR_TotP_loads<- predLoad(YR_flowP2, newdata = YR_P, load.units="kg", by="day")
+
+### use rLOADEST package to print diagnostic plots ###
+plot(YR_flowP2, which=1,set.up=FALSE)
+plot(YR_flowP2, which=2,set.up=FALSE)
+plot(YR_flowP2, which=3,set.up=FALSE)
+#plot(YR_flowP2, which=4,set.up=FALSE) #takes too long to plot...issue somewhere with package
+plot(YR_flowP2, which=5,set.up=FALSE)
+plot(YR_flowP2, which=6,set.up=FALSE)
+
+### save as new data file ###
+write.csv(YR_TotP_loads, file="Cleaned_data/YR_TotP_loads.csv")
+```
+
+Stream C daily loads estimated.
+
+# Step 4. Merge the data:
+Note, R only merges two data frames at a time.
+
+```{r}
+### add column with site name ###
+PB_TotP_loads$Site<- as.character("Pheasant Branch")
+SMC_TotP_loads$Site<- as.character("Six Mile Creek")
+YR_TotP_loads$Site<- as.character("Yahara River")
+
+### add data frames as new rows in new data frame ###
+Inflows<- rbind(PB_TotP_loads, SMC_TotP_loads, YR_TotP_loads) #keep records with same sample date
+
+### rename fields and reformat ###
+Inflows$Site<- as.factor(Inflows$Site) #assign levels
+names(Inflows)[names(Inflows)=="Date"] <- "sampledate" #rename column
+Inflows<- Inflows %>%
+  mutate(Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j"))) #add day number field
+
+### add total load from all inflows ###
+Inflows_all<- Inflows %>%
+  select(sampledate, Flow, Flux, Site) %>%
+  group_by(sampledate) %>%
+  summarize(Flow=sum(Flow),
+            Flux=sum(Flux)) %>%
+  mutate(Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j"))) #add day number field
+Inflows_all$Site<- as.factor("All") #assign levels
+Inflows_all$Std.Err<-"" #leave field empty
+Inflows_all$SEP<- ""
+Inflows_all$L95<- ""
+Inflows_all$U95<- ""
+Inflows<- rbind(Inflows, Inflows_all) #add "All" records to other dataframe
+```
+
+Total P data files merged into one file, "Inflows."
+
+# Step 5. Save new data file.
+
+```{R}
+write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data file
+```
+
+Data file saved as "TotalP_inflows.csv" in the Cleaned_data folder.
+
+# Step 6. View and summarize the data:
+
+a) viewing daily total P loading for each inflow...
+
+```{r}
+### plot daily load for each inflow and total load ###
+fig4<- ggplot(data=Inflows, 
+       aes(x=daynum, 
+           y=Flux)) +
+  geom_line()+
+  facet_wrap(~Site) +
+  theme_classic(base_size=12)+
+  labs(y="Daily Stream Total P Load (kg/day)",
+       x="Day of Year",
+      caption="White highlight indicates CyanoHAB season.") +
+  scale_y_continuous(trans="sqrt") + #transform y-axis scale to see small values
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+fig4 #prints out plot
+ggsave(fig4, file="Products/Figure4.png")
+```
+
+Plotted Total P for day of year across the three inflows, for all years. 
+
+b) calculating average daily total P loading during the CyanoHAB season...
+
+```{r}
+Inflows_avg<- Inflows %>%
+  filter(daynum>= 196 & daynum <=258,
+         Yr>=2012 & Yr<=2018) %>% #filter for study period
+  group_by(Site) %>% #compute for each inflow
+  summarise(mean=mean(Flux, na.rm=TRUE),#average daily total P loading
+            se=(sd(Flux, na.rm=TRUE)/sqrt(length(Flux))),
+            min=min(Flux, na.rm=TRUE),
+            max=max(Flux, na.rm=TRUE))
+Inflows_avg
+```
+
+Estimated average daily total P loading during CyanoHAB season for each inflow.
+
+c) calculating average annual total P load during CyanoHAB season...
+
+```{r}
+Inflows_sumavg<- Inflows %>%
+  filter(daynum>= 196 & daynum <=258,
+         Yr>=2012 & Yr <= 2018,
+         Site=="All") %>%#filter for CyanoHAB season
+  group_by(Yr) %>%
+  summarize(sum=sum(Flux)) #sum dailyP loads 
+Inflows_sumavg
+mean(Inflows_sumavg$sum)
+sd(Inflows_sumavg$sum, na.rm=TRUE)/sqrt(length(Inflows_sumavg$sum))
+```
+
+Average annual total P load calculated.
+
+d) calculating average annual stream p load...
+
+```{r}
+Inflows_yravg<- Inflows %>%
+  filter(Yr>2012 & Yr <= 2018,
+         Site=="All") %>%#filter for CyanoHAB season
+  group_by(Yr) %>%
+  summarize(sum=sum(Flux)) #sum annual P loads 
+Inflows_yravg
+mean(Inflows_yravg$sum)
+sd(Inflows_yravg$sum, na.rm=TRUE)/sqrt(length(Inflows_yravg$sum))
+```
