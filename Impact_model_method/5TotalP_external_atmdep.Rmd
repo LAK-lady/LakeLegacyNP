@@ -18,7 +18,6 @@ P_dry = P deposition * Lake surface area
 a) Loading dependent packages...
 ```{r}
 library(dplyr) #needed for reshaping/reformaing data
-library(lubridate) #needed for date functions
 library(ggplot2) #needed for plots
 ```
 
@@ -102,19 +101,7 @@ write.csv(precip_interp, file="Cleaned_data/TotalP_atm.csv")
 New file saved as "TotalP_atm.csv" in the Cleaned_data folder.
 # Step 4. View and summarize the data:
 
-a) plotting atmospheric deposition total P load by day of year...
-```{r}
-ggplot(data=precip_interp, 
-       aes(x=daynum, y=atm_TotP_kgday)) +
-  geom_point() +
-  geom_smooth(col="red", lty="dashed") +
-  theme_classic(base_size=12) +
-  labs(x="Day of Year", y="Total P deposited (wet and dry), in kg/day") 
-```
-
-Data plotted.
-
-b) calculating average daily total P loading from atm deposit during CyanoHAB season...
+a) calculating average daily total P loading from atm deposit during CyanoHAB season...
 
 ```{r}
 precip_dayavg<- precip_interp %>%  
@@ -128,7 +115,7 @@ precip_dayavg<- precip_interp %>%
 precip_dayavg
 ```
 
-c) calculating average annual total P loading from atm deposit during CyanoHAB season...
+b) calculating average annual total P loading from atm deposit during CyanoHAB season...
 
 ```{r}
 precip_sumtot<- precip_interp %>%
@@ -145,7 +132,7 @@ sum_table<-precip_sumtot %>%
 sum_table
 ```
 
-d) plotting P_atm by year (cyanoHAB season only)...
+c) plotting P_atm by year (cyanoHAB season only)...
 
 ```{r}
 ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
