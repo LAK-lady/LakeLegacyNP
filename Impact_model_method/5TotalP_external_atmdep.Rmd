@@ -151,7 +151,9 @@ d) plotting P_atm by year (cyanoHAB season only)...
 ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
   geom_col() +
   theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)") 
+  labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)")
+ggsave("Products/SI_figure7.png")
+write.csv(precip_sumtot, file="Products/SI_figure7_data.csv")
 ```
 
 Total P load from atm deposit plotted by year for CyanoHAB season.
