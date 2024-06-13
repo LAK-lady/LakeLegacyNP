@@ -88,7 +88,7 @@ a<- ggplot(data=Figure2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 
 ### plot cyanobacteria relative biovolume by day of year ###
 b <- ggplot(data=Figure2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano RB across day
@@ -101,7 +101,7 @@ b <- ggplot(data=Figure2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano 
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 fig2<- ggarrange(a, b, nrow=2, ncol=1) #plot figures together
 fig2 #print figure
 ggsave("Products/Figure2_color.png") #saves plot to Products folder
