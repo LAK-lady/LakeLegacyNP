@@ -1,0 +1,459 @@
+---
+title: "TotalP_water.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-05-20'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to process measurements taken in the surface 
+water (epilimnion) and bottom water (hypolimnion) of the lake. 
+
+
+# Step 1. load dependent packages and data needed:
+
+a) Loading the dependent packages...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(ggplot2) #needed for plotting
+library(rLakeAnalyzer) #needed to find thermocline depth from temperature profile
+library(reshape2) #needed to reshape data frame from wide to long or long to wide
+library(zoo) #needed to linearly interpolate missing values
+library(tidyverse) #needed for crossing function
+```
+
+Packages loaded.
+
+b) Loading the data with total P concentrations, water temperature, and external P loads...
+
+```{r}
+### load data with total P concentration measurements ###
+water_P<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) #has nutrient data measured in lake
+
+### load data with water temperature measurements ###
+watertemp<-read.csv(file="Original_data/ntl29_v12_temp.csv") #data from temp string
+```
+
+# Step 2. Reformat and filter data:
+
+a) reformatting and filtering water P data...
+
+```{r}
+### reformat water P data ###
+water_P2<- water_P %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #format as Date
+  rename(Yr=year4, #rename year field
+         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
+         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
+         Depth_m = depth)  #rename depth field with units (meters)
+
+### filter data to study site and study period ###
+water_P2<- water_P2 %>%
+  filter(lakeid=="ME", #filter for Lake Mendota
+         rep=="1") %>% #remove analytical reps
+  filter(Yr>=2013 & Yr <=2018) %>%  #filter for the study years 
+  filter(daynum>= 189 & daynum <=259) %>% #filter for CyanoHAB season +- 7 days
+  select(sampledate, TotP_mgL, DisP_mgL, Depth_m, daynum, Yr) #%>%
+#  filter(!is.na(TotP_mgL)) #remove records with NAs
+```
+
+Water column P data formatted and filtered.
+
+b) reformatting and filtering water temperature data...
+
+```{r}
+### reformat water temperature data ###
+watertemp2<- watertemp %>% #make new data frame
+  mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y",#specify format of date
+                            origin="1899-12-30"),
+         daynum=as.integer(format(sampledate, format="%j"))) %>% #add in day number
+  rename(Yr=year4, #rename year field
+         Depth_m=depth, #rename column with units
+         watertemp_C=wtemp) #rename column with units 
+### filter water temperature data ###
+watertemp2<- watertemp2 %>%
+  filter(lakeid=="ME") %>% #filter for Lake Mendota data only
+  filter(rep==1) %>% #filter for rep 1 (no analytical reps)
+  filter(Yr>=2013 & Yr <=2018) %>% #filter for the study years 
+  filter(daynum>= 189 & daynum <=259) %>% #filter for CyanoHAB season  +- 7 days
+  select(sampledate, Depth_m, watertemp_C, daynum, Yr) #%>% #select vars needed
+#  filter(!is.na(watertemp_C)) #remove NAs
+```
+
+Water temperature data reformatted and filtered.
+
+# Step 3. View and summarize data:
+
+a) plotting P concentrations across depth and time...
+
+```{r}
+### plot P concentration across both depth and time ###
+SI_fig14<- ggplot(data=water_P2, #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sampled date as x-axis
+           y=Depth_m, 
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point() + #plot points
+  facet_wrap(~Yr) + #make separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = high values
+                        low=scales::muted("blue"), #blue = low values
+                        name="Total P (mg/L)") + #name of legend
+  geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)") 
+SI_fig14
+ggsave(SI_fig14, file="Products/SI_figures/Figure14_color.png")
+```
+
+Total P concentrations plotted across depth and date.
+
+b) plotting water temperature across depth and date...
+
+```{r}
+### plot water temp across depth (y-axis) and date (x-axis) ###
+SI_fig15<- ggplot(data=watertemp2, #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sampled date as x-axis
+           y=Depth_m, 
+           color=watertemp_C)) + #and data points colored by temperature
+  geom_point() + #plot points
+  facet_wrap(~Yr) + #make separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = hot temp
+                        low=scales::muted("blue"), #blue = cold temp
+                        name="Water Temperature (C)") + #name of legend
+  geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)") 
+SI_fig15
+ggsave(SI_fig15, file="Products/SI_figures/Figure15_color.png")
+
+### define the lower boundary of the epilimnion and highest boundary of the hypolimnion from temperature profiles ###
+epi_max_m<- 8
+hypo_min_m<- 20
+```
+
+Water temperature plotted across depth and date.
+
+# Step 4. Calculate P_hypo:epi:
+
+a) calculating mean epi and hypo P concentrations...
+
+```{r}
+### filter P data to epilimnion ###
+Epi_P<- water_P2 %>%
+  filter(Depth_m <= epi_max_m) %>% #for observations taken at or above 8 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(epi_TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            epi_DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) #calculates mean for all depths in epi 
+
+### filter P data to hypolimnion ###
+Hypo_P<- water_P2 %>%
+  filter(Depth_m >= hypo_min_m) %>% #for observations taken at or below 20m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(hypo_TotP_mgL=mean(TotP_mgL, na.rm=TRUE),
+            hypo_DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) #calculates mean for all depths in hypo, adds negligible number to avoid zero
+
+### merge the two data frames, add day and year ###
+P_ratio<- merge(Epi_P, Hypo_P, by="sampledate")
+P_ratio<- P_ratio %>%
+  mutate(Yr=as.integer(format(sampledate, format="%Y")),
+         daynum=as.integer(format(sampledate, format="%j"))) #add in day number)
+
+### rename columns and add P_hypo:epi ratio ###
+P_ratio <- P_ratio %>%
+  mutate(TotP_HEratio=ifelse((hypo_TotP_mgL/epi_TotP_mgL)!=Inf, (hypo_TotP_mgL/epi_TotP_mgL), NA), #if value is Inf, replace value with NA
+         DisP_HEratio=ifelse((hypo_DisP_mgL/epi_DisP_mgL)!=Inf, (hypo_DisP_mgL/epi_DisP_mgL), NA)) #if value is Inf, replace value with NA
+
+### check for NAs ###
+summary(P_ratio$TotP_HEratio)
+summary(P_ratio$DisP_HEratio)
+```
+
+P_hypo:epi calculated.
+
+b) viewing P_hypo:epi across depth and date...
+
+```{r}
+SI_fig16<- ggplot(data=P_ratio, aes(x=daynum))+ #plot thermocline depth across date
+  geom_line(aes(y=epi_TotP_mgL), color="blue") + #
+  geom_point(aes(y=epi_TotP_mgL),color="blue") + #add lines between points
+  geom_line(aes(y=epi_DisP_mgL), color="blue", lty="dashed") + #
+  geom_point(aes(y=epi_DisP_mgL),color="blue", shape=2) + #add lines between points
+  geom_line(aes(y=hypo_TotP_mgL), color="red") + #
+  geom_point(aes(y=hypo_TotP_mgL), color="red") + #add lines between points
+  geom_line(aes(y=hypo_DisP_mgL), color="red", lty="dashed") + #
+  geom_point(aes(y=hypo_DisP_mgL),color="red", shape=2) + #add lines between points
+  facet_wrap(~Yr) + #plot individual years
+  geom_hline(yintercept=0.03, lty="dashed") +
+  theme_classic() +
+  labs(x="Date", y="P concentration (mg/L)")#add axis labels
+SI_fig16
+ggsave(SI_fig16, file="Products/SI_figures/Figure16_color.png")
+```
+
+Average P concentrations graphed by depth and date.
+
+# Step 5. Calculate the change in epilimnion volume between sampling events:
+Note, rLakeAnalyzer package is required here. Data frame needs to be in wide
+format with each depth a separate column (add prefix= "wtr_") to match package
+function dependencies.
+
+a) calculating thermocline depth and epilimnion volume...
+
+```{r}
+### reformat data for input into rLakeAnalyzer ###
+wtr<- watertemp2 %>%
+  select(sampledate, Depth_m, watertemp_C) #only include needed columns
+wtr<- dcast(wtr, sampledate ~ Depth_m) # reshape depth from long to wide
+colnames(wtr)<- paste("wtr", colnames(wtr), sep="_") #add wtr_ before column name
+# fit package format dependencies
+wtr<- wtr %>%
+  rename(datetime=wtr_sampledate) #rename column to fit package format dependencies
+
+### calculate the thermocline depth ###
+t.d<- ts.thermo.depth(wtr, na.rm=TRUE) #calculates thermocline depth as time series
+
+### plot the thermocline depth by date ###
+SI_fig17<- ggplot(data=t.d, aes(x=datetime, 
+                     y=thermo.depth))+ #plot thermocline depth across date
+  geom_point(shape=1) + #points as open circles
+  geom_line() + #add lines between points
+  scale_y_reverse() + #reverse the y scale for limno plot
+  theme_classic() +
+  labs(x="Date", y="Thermocline depth (m)")#add axis labels
+SI_fig17
+ggsave(SI_fig17, file="Products/SI_figures/Figure17.png")
+
+### seperate data by year then assign thermocline depth for each observation (t) ###
+t.d2<- t.d %>% #make new table
+  mutate(Yr=as.numeric(format(datetime, "%Y"))) %>% #add in year
+  group_by(Yr) %>% #for each year of day
+  mutate(Thermo_depth_m=thermo.depth, thermo.depth=NULL, #add units and remove duplicate column
+         Thermo_depth_m_k1=lag(Thermo_depth_m, n=1)) #thermocline depth at t-1 
+
+### reassign first thermocline depth at t-1 each year (Nas) as thermocline depth at t ###
+t.d2$Thermo_depth_m_k1[is.na(t.d2$Thermo_depth_m_k1)] <- t.d2$Thermo_depth_m[is.na(t.d2$Thermo_depth_m_k1)]#replace NAs in t-1 with the t value
+
+### calculate the change in thermocline depth between t and t-1 to get the volume ###
+A_strat= 25850000 # surface area of stratified region in m^2 
+Vol_epi<- t.d2 %>%
+  mutate(Chg_Thermodepth_m = (Thermo_depth_m - Thermo_depth_m_k1),#calculate daily change in depth 
+         Vol_epi_m3 = Chg_Thermodepth_m*A_strat,#calculate daily change in volume
+         sampledate=datetime, datetime=NULL, #rename column, remove duplicate
+         daynum=as.numeric(format(sampledate, "%j")), #add in daynum
+         Depth_m=as.integer(round(Thermo_depth_m, 0))) %>% #round the thermocline depth to nearest integer
+  select(sampledate, Yr, daynum, Vol_epi_m3, Thermo_depth_m, Depth_m)
+```
+
+Thermocline and change in epi volume calculated.
+
+b) plotting change in epi volume over time...
+
+```{r}
+SI_fig18<- ggplot(data=Vol_epi, #create plot
+       aes(x=daynum, #sampled date as x-axis
+           y=Vol_epi_m3)) + #depth as y-axis
+  geom_point() + #plot point graph
+  geom_line() + #add lines beween points
+  facet_wrap(~Yr) + #make separate graph for each year
+  geom_hline(yintercept=0, lty="dashed") + #add in horizontal line for zero change
+  theme_classic() +
+  labs(x="Date", y="Change in Epilimnion Volume (m^3)", #add axis labels 
+       caption="Horizontal dashed line indicates zero net change.")
+SI_fig18
+ggsave(SI_fig18, file="Products/SI_figures/Figure18.png")
+```
+
+Change in epilimnion volume plotted. 
+
+# Step 5. Interpolate missing data and bin observations to equal intervals:
+
+a) interpolating missing P concentrations across depth...
+
+```{r}
+### create a function to interpolate across depth for each sample date ###
+estimate_TotP_by_date <- function(target_date, target_depth) { #write function that
+  data_for_date <- water_P2 %>% #creates a new data frame for a single date
+    filter(sampledate == target_date) %>% #filters for specific date
+    arrange(Depth_m) #and arranges depths min to max
+  approx(data_for_date$Depth_m, #linear regression interpolation of
+         data_for_date$TotP_mgL, #y values
+         xout = target_depth)$y #from depth min to max
+}
+
+### filter out any observations that have < 2 values (>2 values needed for interpolation) ###
+water_P2<- water_P2 %>%
+  group_by(sampledate) %>% #for each sampledate
+  filter(!n()<2) %>% #remove dates with less than 2 observations
+  ungroup() #ungroup table
+
+### interpolate P concentrations across depth within each sample date ###
+TotP_interp_depth <- crossing( #creates a tibble that 
+  tibble(date = unique(water_P2$sampledate)), #has same dates as those in frame
+  # depths can now be any value
+  tibble(Depth_m = seq(0, 25, #define depth min and max
+                       length.out = 26)) #set the number of interpolated values
+) %>%
+  group_by(date) %>%
+  mutate(TotP_mgL = estimate_TotP_by_date(date[1], Depth_m)) %>%
+  ungroup()
+
+### plot interpolated water P data ###
+SI_fig19<- ggplot(data=TotP_interp_depth, #create limno plot with depth inverse on y-axis
+       aes(x=as.integer(format(date, "%j")), #sample date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(format(date, "%Y"))) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Total P (ug/L)") + 
+  geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Date", y="Depth (m)")  #add axis labels
+SI_fig19 #print plot
+ggsave(SI_fig19, file="Products/SI_figures/Figure19_color.png") #save plot
+```
+
+P concentration interpolated across depth.
+
+b) binning P observations to expected frequency...
+
+```{r}
+### define expected observation frequency ###
+Yr<- seq(from=2013, #define year start of study period
+             to=2018, #define year end of study period
+             by=1) #creates a sequence every 1 year
+Yr #prints the expected years of data
+daynum_bins<- seq(from=196, #define date start of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
+                  by=14) #creates a sequence every 14 days 
+daynum_bins #prints the expected observation dates of data
+
+### add fields with day and year numbers ###
+TotP_interp_depth <- TotP_interp_depth %>%
+  mutate(daynum=as.numeric(format(date, "%j")), #add field with day num
+         Yr=as.numeric(format(date, "%Y"))) #add field with yr
+
+### bin observations to expected frequency ###
+TotP_interp_depth <- TotP_interp_depth  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<=(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>(daynum_bins[2]-7)&daynum<=(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>(daynum_bins[3]-7)&daynum<=(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>(daynum_bins[4]-7)&daynum<=(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+
+### check observations rebinned ###
+ggplot(data=TotP_interp_depth, #create limno plot with depth inverse on y-axis
+       aes(x=daynum_bin, #daynum as x-axis
+           y=Depth_m, #depth as y-axis
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(Yr)) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Total P (ug/L)") + 
+  geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)")  #add axis labels
+```
+
+ P measurements at equal intervals. 
+
+c) binning change in epi volume to expected frequency... 
+
+```{r}
+### bin observations to expected frequency ###
+Vol_epi <- Vol_epi  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<=(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>(daynum_bins[2]-7)&daynum<=(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>(daynum_bins[3]-7)&daynum<=(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>(daynum_bins[4]-7)&daynum<=(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+Vol_epi<- Vol_epi %>% 
+  filter(!duplicated(cbind(Yr, daynum_bin), fromLast = TRUE)) #remove duplicate
+```
+
+Epi volume change binned to expected frequency. 
+
+d) binning P_hypo:epi to expected frequencies...
+
+```{r}
+### add Yr and daynum to data frame ###
+P_ratio<- P_ratio %>%
+  mutate(Yr=as.integer(format(sampledate, "%Y")),
+         daynum=as.integer(format(sampledate, "%j")))
+
+### bin observations to expected frequency ###
+P_ratio <- P_ratio  %>% 
+mutate(daynum_bin=
+         ifelse(daynum<=(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>(daynum_bins[2]-7)&daynum<=(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>(daynum_bins[3]-7)&daynum<=(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>(daynum_bins[4]-7)&daynum<=(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])#no returns bin 5
+                     )
+              )
+       ) 
+)
+```
+
+P_hypo:epi binned to expected frequencies.
+
+# Step 6. Merge the data frames: 
+
+```{r}
+### merging TotP_interpolated by depth and Volume change ###
+P_vol<- merge(TotP_interp_depth, #joins x data frame
+             Vol_epi, #joins y data frame
+             by.x=c('Yr', 'daynum_bin', 'Depth_m'), #using these key fields in x
+             by.y=c('Yr', 'daynum_bin', 'Depth_m'),#using these key fields in y
+             all=TRUE) 
+```
+
+# Step 7. Save the new data files:
+
+```{r}
+### save the P concentration and epi volume change ###
+write.csv(P_vol, file="Cleaned_data/TotalP_water.csv")
+
+### save the P_hypo:epi ###
+write.csv(P_ratio, file="Cleaned_data/TotalP_ratio.csv")
+```
+
+Data saved.
