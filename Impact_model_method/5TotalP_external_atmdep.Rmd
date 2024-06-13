@@ -1,7 +1,7 @@
 ---
 title: "TotalP_external_atmdep"
 author: "Lauren A. Knose, ORISE-EPA"
-date: '2023-05-24'
+date: '2024-05-30'
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -105,7 +105,7 @@ a) calculating average daily total P loading from atm deposit during CyanoHAB se
 
 ```{r}
 precip_dayavg<- precip_interp %>%  
-  filter(daynum >=196 & daynum <= 258) %>%
+  filter(daynum >=196 & daynum <= 252) %>%
   summarize(mean=mean(atm_TotP_kgday, #average daily total P loading
                       na.rm=TRUE),
             se=(sd(atm_TotP_kgday, na.rm=TRUE)/sqrt(length(atm_TotP_kgday))),
@@ -119,7 +119,7 @@ b) calculating average annual total P loading from atm deposit during CyanoHAB s
 
 ```{r}
 precip_sumtot<- precip_interp %>%
-  filter(daynum>= 196 & daynum <=258) %>% #filter for CyanoHAB season
+  filter(daynum>= 196 & daynum <=252) %>% #filter for CyanoHAB season
   group_by(Yr) %>% #group all records by year
   summarise(sum_TP_kgyr=sum(atm_TotP_kgday))  #calculate the total P load
 precip_sumtot
@@ -135,12 +135,12 @@ sum_table
 c) plotting P_atm by year (cyanoHAB season only)...
 
 ```{r}
-ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
+SI_fig11<- ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
   geom_col() +
   theme_classic(base_size=12) +
   labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)")
-ggsave("Products/SI_figure7.png")
-write.csv(precip_sumtot, file="Products/SI_figure7_data.csv")
+SI_fig11
+ggsave("Products/SI_figures/Figure_11.png")
 ```
 
 Total P load from atm deposit plotted by year for CyanoHAB season.
