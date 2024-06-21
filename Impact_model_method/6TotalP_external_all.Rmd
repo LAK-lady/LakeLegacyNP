@@ -47,7 +47,6 @@ streams2<- streams %>%
                             format="%Y-%m-%d")) %>%
   filter(Site=="All") %>%
   mutate(Pstreams_kgday=Flux) %>%#reformat date
-  filter(daynum>=196 & daynum<=252) %>% #filter for the CyanoHAB season
   filter(Yr>=2013 & Yr<=2018) %>% #filter for the study period
   select(sampledate, Yr, daynum, Pstreams_kgday) #remove unecessary fields
 
@@ -58,8 +57,7 @@ colnames(atm) #print column names
 atm2<- atm %>%
   mutate(X=NULL, #remove index column
          sampledate=as.Date(sampledate, origin="1899-12-30"),
-         Patm_kgday=atm_TotP_kgday)%>% #reformat date
-  filter(daynum>=196 & daynum<=252) %>% #filter for the CyanoHAB season
+         Patm_kgday=totP_atm_kgday)%>% #reformat date
   filter(Yr>=2013 & Yr<=2018) #filter for the study period
 ```
 
@@ -69,7 +67,7 @@ b) merging data...
 
 ```{r}
 ### merge the two data files ###
-extP_load<- merge(atm2, streams2, by=c("Yr", "daynum")) #adds two data files together
+extP_load<- merge(atm2, streams2, by=c("Yr", "daynum", "sampledate")) #adds two data files together
 ```
 
 Data merged.
@@ -81,9 +79,7 @@ Data merged.
 extP_load <- extP_load %>%
   mutate(Pext_kgday_noother=(Patm_kgday + Pstreams_kgday), #combine atm P and stream P
          Pother_kgday=(Pext_kgday_noother*.47), #assign new column for P_other with 47% of total
-         Pext_kgday=Pext_kgday_noother*1.47) %>% #increase P_ext 47% to account for P_other
-  rename(sampledate=sampledate.x) %>%
-  select(!c(sampledate.y))
+         Pext_kgday=Pext_kgday_noother*1.47)  #increase P_ext 47% to account for P_other
 ```
 
 External P loading merged.
@@ -103,11 +99,11 @@ a) calculating average daily and average annual external P loads...
 ```{r}
 ### average daily external P load ###
 Pext_day<- extP_load %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for the CyanoHAB season)
   summarize(mean=mean(Pext_kgday, na.rm=TRUE), #calculate mean
             se=(sd(Pext_kgday, na.rm=TRUE)/sqrt(length(Pext_kgday))),
             min=min(Pext_kgday, na.rm=TRUE),
-            max=max(Pext_kgday, na.rm=TRUE)
-            )
+            max=max(Pext_kgday, na.rm=TRUE))
 Pext_day # the estimated daily average  P_ext with P_other
 
 ### calculate average Pext per m2 ###
@@ -116,6 +112,7 @@ Pext_day/A_lake_km2
 
 ### sum annual external P load ###
 Pext_yr<- extP_load %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for the CyanoHAB season
   mutate(Yr=format(sampledate, "%Y")) %>% #add field with year
   group_by(Yr) %>%
   summarize(sum=sum(Pext_kgday, na.rm = TRUE)) #calculate total P_ext per year
@@ -132,61 +129,58 @@ Pext_yr_avg #the estimated annual average P_ext with the P_other
 
 P_ext summarized.
 
-b) calculating P_streams for whole year (not just cyanoHAB season)...
-
-```{r}
-streams_yr<- streams %>%
-  filter(Yr>=2013 & Yr <=2018) %>%
-  group_by(Yr) %>%
-  summarize(sum=sum(Flux, na.rm=TRUE))
-streams_yr
-streams_yr_avg<- streams_yr %>%
-  summarize(mean=mean(sum, na.rm=TRUE), #print the average annual
-            se=sd(sum, na.rm=TRUE)/sqrt(length(sum)),
-            min=min(sum, na.rm=TRUE),
-            max=max(sum, na.rm=TRUE)) #print sd for avg
-streams_yr_avg #the estimated annual average P_ext with the P_other
-```
-
-Annual stream P loads estimated.
-
-c) plotting annual loads by source...
+b) plotting annual loads by source...
 
 ```{r}
 ### reshape data frame to long format ###
 extP_load_long<- melt(extP_load, #the table you want to reshape wide to long
-               id.vars=c("sampledate")) #the column to use as unique id
+               id.vars=c("sampledate", "Yr", "daynum")) #the column to use as unique id
 
-### rename fields ###
+### reformat fields ###
 extP_load_long<- extP_load_long %>%
   rename(Source=variable,
          Pext_kgday=value)
 extP_load_long$Source<-as.character(extP_load_long$Source) #tell R character data
-extP_load_long<- extP_load_long %>%
-  mutate(Yr=as.character(format(sampledate, "%Y"))) # adds field with year
 
-### select the three external sources ###
-unique(extP_load_long$Source)
-extP_load_source<- extP_load_long %>% #filter for the three factors
-  filter(Source=="Patm_kgday"| Source=="Pstreams_kgday"|Source=="Pother_kgday") 
+### select the three sources and rename values ###
+extP_load_source<- extP_load_long %>% 
+  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
+  filter(Source=="Patm_kgday"|  Source=="Pstreams_kgday"|Source=="Pother_kgday") #filter for the three sources
+
 extP_load_source$Source[extP_load_source$Source=="Patm_kgday"] <- "atmosphere"
 extP_load_source$Source[extP_load_source$Source=="Pstreams_kgday"] <- "streams"
 extP_load_source$Source[extP_load_source$Source=="Pother_kgday"] <- "other"
 
-### summarize each source by year ###
+### summarize each external source by year ###
 extP_load_source_sum<- extP_load_source %>%
   group_by(Yr, Source) %>%
-  summarize(totP_kgyr=sum(Pext_kgday, na.rm=TRUE))
-extP_load_source_sum #print table
+  summarize(TotP_kgyr=sum(Pext_kgday, na.rm=TRUE)) %>%
+  ungroup()
+
+### summarize precipitation by year ###
+precip<- extP_load %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
+  select(Yr, Precipitation_in) %>%
+  group_by(Yr) %>%
+  summarize(Precip_inyr=sum(Precipitation_in)) %>%
+  ungroup()
 
 ### plot total extP by source and year ###  
-SI_fig12<- ggplot(extP_load_source_sum, aes(x=Yr, y=totP_kgyr, 
+SI_fig12a<- ggplot(data=precip, aes(x=as.character(Yr), y=Precip_inyr)) + 
+  geom_bar(stat="identity", color="black", fill="grey")+ 
+  theme_classic()+
+  labs(x=NULL, y="Precipitation (in)")
+SI_fig12a
+
+SI_fig12b<- ggplot(extP_load_source_sum, aes(x=as.character(Yr), y=TotP_kgyr, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "white", "black")) + #atm = grey, streams=black, other=white
   theme_classic(base_size=12) +
-  labs(x="Year", y="External total P loading (kg/yr)")
-SI_fig12 #print plot
+  labs(x="Year", y="External total P load (kg/yr)")
+SI_fig12b #print plot
+SI_fig12<- ggarrange(SI_fig12a, SI_fig12b, ncol=1, nrow=2, heights=c(0.5, 1))
+SI_fig12
 ggsave(SI_fig12, file="Products/SI_figures/Figure12.png")
 ```
 
@@ -197,6 +191,7 @@ d) summarizing daily and annual P_ext by source...
 ```{r}
 ### average daily external P load by source ###
 Pext_day_source<- extP_load_source %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
   group_by(Source) %>%
   summarize(mean=mean(Pext_kgday, #average daily total P loading
                       na.rm=TRUE),
@@ -207,6 +202,7 @@ Pext_day_source
 
 ### sum annual external P load by source ###
 extP_load_long_yr<- extP_load_source %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
   group_by(Yr, Source) %>%
   summarize(sum=sum(Pext_kgday)) #add total P load
 extP_load_long_yr #print table
