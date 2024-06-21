@@ -114,9 +114,9 @@ C<- ggplot(data=YR_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
   theme_classic()
 
 ### display regression plots together ###
-SIfig6<-ggarrange(A,B,C, ncol=3, nrow=1) #prints plots together
-SIfig6 #Prints the figure
-ggsave(SIfig6, file="Products/SI_figures/Figure6_color.png") #save figure
+SIfig5<-ggarrange(A,B,C, ncol=3, nrow=1) #prints plots together
+SIfig5 #Prints the figure
+ggsave(SIfig5, file="Products/SI_figures/Figure5_color.png") #save figure
 
 ### print regression model results ###
 PB_flowP<- lm(log10(PB_P$TotP_mgL) ~ log10(PB_P$Q_Lday)*daynum, data=PB_P) #write the model using simple linear regression
@@ -146,7 +146,7 @@ print(PB_flowP2, brief=FALSE, load.only=FALSE)
 PB_TotP_loads<- predLoad(PB_flowP2, newdata = PB_P, load.units="kg", by="day")
 
 ### use rLOADEST package to print diagnostic plots ###
-png(filename="Products/SI_figures/Figure7.png", width=900, height= 600)
+png(filename="Products/SI_figures/Figure6.png", width=900, height= 600)
 layout(matrix(c(1,2,3,4,5,6), nrow=2, ncol=3))
 plot(PB_flowP2, which=1,set.up=FALSE)
 plot(PB_flowP2, which=2,set.up=FALSE)
@@ -177,7 +177,7 @@ print(SMC_flowP2, brief=FALSE, load.only=FALSE)
 SMC_TotP_loads<- predLoad(SMC_flowP2, newdata = SMC_P, load.units="kg", by="day")
 
 ### use rLOADEST package to print diagnostic plots ###
-png(filename="Products/SI_figures/Figure8.png", width=900, height= 600)
+png(filename="Products/SI_figures/Figure7.png", width=900, height= 600)
 layout(matrix(c(1,2,3,4,5,6), nrow=2, ncol=3))
 plot(SMC_flowP2, which=1,set.up=FALSE)
 plot(SMC_flowP2, which=2,set.up=FALSE)
@@ -208,7 +208,7 @@ print(YR_flowP2, brief=FALSE, load.only=FALSE)
 YR_TotP_loads<- predLoad(YR_flowP2, newdata = YR_P, load.units="kg", by="day")
 
 ### use rLOADEST package to print diagnostic plots ###
-png(filename="Products/SI_figures/Figure9.png", width=900, height= 600)
+png(filename="Products/SI_figures/Figure8.png", width=900, height= 600)
 layout(matrix(c(1,2,3,4,5,6), nrow=2, ncol=3))
 plot(YR_flowP2, which=1,set.up=FALSE)
 plot(YR_flowP2, which=2,set.up=FALSE)
@@ -275,7 +275,7 @@ a) viewing daily total P loading for each inflow...
 
 ```{r}
 ### plot daily load for each inflow and total load ###
-SI_fig10<- ggplot(data=Inflows, 
+SI_fig9<- ggplot(data=Inflows, 
        aes(x=daynum, 
            y=Flux)) +
   geom_line()+
@@ -288,8 +288,8 @@ SI_fig10<- ggplot(data=Inflows,
            xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
-SI_fig10 #prints out plot
-ggsave(SI_fig10, file="Products/SI_figures/Figure10.png")
+SI_fig9 #prints out plot
+ggsave(SI_fig9, file="Products/SI_figures/Figure9.png")
 ```
 
 Plotted Total P for day of year across the three inflows, for all years. 
