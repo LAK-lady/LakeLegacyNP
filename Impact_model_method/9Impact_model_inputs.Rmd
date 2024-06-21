@@ -31,128 +31,140 @@ intLoad<- read.csv(file="Cleaned_data/TotalP_allint.csv")
 
 # Step 2. Reformat the data: 
 
-a) merging the data files...
+a) merging the load data files...
 Note, you can only merge two files at one time.
 
 ```{r}
 ### select fields needed ###
-intLoad<- intLoad %>%
-  select(Yr, daynum_bin, 
-         Strat_TotP_kgday, Unstr_TotP_kgday, Int_TotP_kgday,
-         epi_TotP_mgL, hypo_TotP_mgL, TotP_HEratio)
+intLoad2<- intLoad %>%
+  select(!c(sampledate.x, sampledate.y))
 
-extLoad<- extLoad %>%
-  select(Yr, daynum,
-         Patm_kgday, Pstreams_kgday, Pother_kgday,
-         Pext_kgday, Pext_kgday_noother)
+extLoad2<- extLoad %>%
+  select(!c(sampledate, dryP_atm_kgday, wetP_atm_kgday, totP_atm_kgday))
 
 ### merge load tables ###
-loads<- merge(intLoad, extLoad,
-               by.x=c("Yr", "daynum_bin"), #key fields in x data frame
+loads<- merge(intLoad2, extLoad2, #daily estimates
+               by.x=c("Yr", "daynum"), #key fields in x data frame
                by.y=c("Yr", "daynum"), #key fields in y data frame
-               all=TRUE) #only keep records in x data frame
-### merge load table to response table ###
-all<- merge(loads, cyanoHAB,
-               by.x=c("Yr", "daynum_bin"), #key fields in x data frame
-               by.y=c("Yr", "week_bin"), #key fields in y data frame
                all=TRUE) #only keep records in x data frame
 ```
 
 Data frames merged.
 
-b) reformatting data...
+b) subsetting data to cyanoHAB season + 28 day lag...
 
 ```{r}
-### create new sample date from year and day number ###
-all<- all %>%
-  mutate(YrDay=paste(Yr, daynum_bin, sep="/"), #combined day of year and year
-         usedate=as.Date(YrDay, format="%Y/%j", #convert  year, day to date
-                      origin="1899-12-30")) 
+loads<- loads %>%
+  filter(daynum >= 168 & daynum <= 252) #cyanoHAB season start - 28 days
 ```
 
-Data table reformatted.
+Data subset.
 
-# Step 3. calculate weekly loads and bin to corresponding cyanoHAB severity:
+# Step 3. Calculate average weekly loads:
 
 a) defining the weekly observation sequence...
 
 ```{r}
 ### define the time sequence needed ###
-week_bins<-seq(from=196, #define date start of CyanoHAB season
+week_bins<-seq(from=168, #define date start of CyanoHAB season
                   to=252, #define date end of CyanoHAB season
                   by=7) #creates a sequence every 1 day 
-week_bins #prints the expected observation dates of data
+week_bins
 ```
 
 Weekly observations determined.
 
-b) summarize loads by week...
+b) bin observations by week...
 
 ```{r}
-### bin the data to the weekly units ###
-all<- all %>% 
-  mutate(week_bin=ifelse(daynum_bin<=week_bins[1], #if observation is <= bin 2 min
-                          week_bins[1], #yes returns bin 2
-                         ifelse(daynum_bin>week_bins[1]&daynum_bin<=week_bins[2], #otherwise...
-              #if observation is > bin 2 min and <= bin 3 min
-              week_bins[2], #yes returns bin 2
-              ifelse(daynum_bin>week_bins[2]&daynum_bin<=week_bins[3],
-                     #if observation is > bin 3 min and <= bin 4 min
-                     week_bins[3], #yes returns bin 3
-                     ifelse(daynum_bin>week_bins[3]&daynum_bin<=week_bins[4],
-                            #if observation is > bin 4 min and <= bin 5 min 
-                            week_bins[4], #yes returns bin 4
-                            ifelse(daynum_bin>week_bins[4]&daynum_bin<=week_bins[5],
-                                   week_bins[5],
-                                   ifelse(daynum_bin>week_bins[5]&daynum_bin<=week_bins[6],
-                                          week_bins[6],
-                                          ifelse(daynum_bin>week_bins[6]&daynum_bin<=week_bins[7], week_bins[7],
-                                                 ifelse(daynum_bin>week_bins[7]&daynum_bin<=week_bins[8], week_bins[8],week_bins[9]))))))))) 
+### bin data frame B to frequencies ###
+loads<- loads %>%
+  mutate(week_bin=
+           ifelse(daynum<week_bins[2], #if observation is <= bin 2 min
+                  week_bins[1], #yes returns bin 1
+                  ifelse(daynum>=week_bins[2]&daynum<week_bins[3],
+                         week_bins[2], 
+                         ifelse(daynum>=week_bins[3]&daynum<week_bins[4],
+                                week_bins[3], ifelse(daynum>=week_bins[4]&daynum<week_bins[5],
+                                       week_bins[4],  ifelse(daynum>=week_bins[5]&daynum<week_bins[6],
+                                       week_bins[5],  ifelse(daynum>=week_bins[6]&daynum<week_bins[7],
+                                       week_bins[6],  ifelse(daynum>=week_bins[7]&daynum<week_bins[8],
+                                       week_bins[7],  ifelse(daynum>=week_bins[8]&daynum<week_bins[9],
+                                       week_bins[8],  ifelse(daynum>=week_bins[9]&daynum<week_bins[10],
+                                       week_bins[9], ifelse(daynum>=week_bins[10]&daynum<week_bins[11],
+                                       week_bins[10], ifelse(daynum>=week_bins[11]&daynum<week_bins[12],
+                                       week_bins[11], ifelse(daynum>=week_bins[12]&daynum<week_bins[13],
+                                       week_bins[12], week_bins[13])))))))))))))
+```
 
+Observations binned. 
+
+c) calculating weekly loads...
+
+```{r}
 ### summarize loads by week ###
-all_x<- all %>%
-  select(Yr, daynum_bin, week_bin, usedate, #id fields
-         Int_TotP_kgday, Strat_TotP_kgday, Unstr_TotP_kgday,
-         epi_TotP_mgL, hypo_TotP_mgL, TotP_HEratio,
-         Patm_kgday, Pstreams_kgday, Pother_kgday, 
-         Pext_kgday_noother, Pext_kgday) %>%
+all_x<- loads %>%
   group_by(Yr, week_bin) %>%
-  summarize(Int_TotP_kg=sum(Int_TotP_kgday),
+  summarize(avg_Pint=mean(Int_TotP_kgday, na.rm=TRUE),
+            avg_Pext=mean(Pext_kgday, na.rm=TRUE),
+            avg_Pextnoother=mean(Pext_kgday_noother, na.rm=TRUE),
+            avg_epiP_mgL=mean(epi_totP_mgL, na.rm=TRUE),
+            avgTotP_HEratio=mean(TotP_HEratio, na.rm=TRUE),
             Strat_TotP_kg=sum(Strat_TotP_kgday),
             Unstr_TotP_kg=sum(Unstr_TotP_kgday),
-            epi_avgTotP_mgL=mean(epi_TotP_mgL, na.rm=TRUE),
-            hypo_avgTotP_mgL=mean(hypo_TotP_mgL, na.rm=TRUE),
-            avgTotP_HEratio=mean(TotP_HEratio, na.rm=TRUE),
+            Int_TotP_kg=sum(Int_TotP_kgday),
+            Precip_in=sum(Precipitation_in),
             Patm_kg=sum(Patm_kgday),
             Pstreams_kg=sum(Pstreams_kgday),
+            Pother_kg=sum(Pother_kgday),
             Pext_kg_noother=sum(Pext_kgday_noother),
-            Pext_kg=sum(Pext_kgday),
-            Pother_kg=sum(Pother_kgday)) 
-
-### select the weekly response observations ###
-all_y<- all %>%
-  select(Yr, daynum_bin, usedate, #id fields
-         Int_TotP_kgday, Pext_kgday, Pext_kgday_noother, TotP_HEratio, #loads
-         Chla_ugL, CD_cellsmL) %>% #responses
-  filter(Chla_ugL!="NA") #remove 
+            Pext_kg=sum(Pext_kgday)) %>%
+  ungroup() %>%
+  mutate(Pload_ratio=Int_TotP_kg/Pext_kg)#calculate the ratio of Pint/Pext
+summary(all_x%>%filter(week_bin>=196&week_bin<=252))
 ```
 
 Weekly loads calculated.
 
-c) merge weekly loads to weekly observations...
+# Step 4. Add lagged values in new field:
 
 ```{r}
-inputs<- merge(all_x, all_y,
+all_x<- all_x %>%
+  mutate(avg_Pint_k7=lag(avg_Pint, n=1),
+         avg_Pint_k14=lag(avg_Pint, n=2),
+         avg_Pint_k21=lag(avg_Pint, n=3),
+         avg_Pint_k28=lag(avg_Pint, n=4),
+         avgTotP_HEratio_k7=lag(avgTotP_HEratio, n=1),
+         avgTotP_HEratio_k14=lag(avgTotP_HEratio, n=2),
+         avgTotP_HEratio_k21=lag(avgTotP_HEratio, n=3),
+         avgTotP_HEratio_k28=lag(avgTotP_HEratio, n=4),
+         avg_Pext_k7=lag(avg_Pext, n=1),
+         avg_Pext_k14=lag(avg_Pext, n=2),
+         avg_Pext_k21=lag(avg_Pext, n=3),
+         avg_Pext_k28=lag(avg_Pext, n=4),
+         avg_Pextnoother_k7=lag(avg_Pextnoother, n=1),
+         avg_Pextnoother_k14=lag(avg_Pextnoother, n=2),
+         avg_Pextnoother_k21=lag(avg_Pextnoother, n=3),
+         avg_Pextnoother_k28=lag(avg_Pextnoother, n=4))
+```
+
+Lagged loads added.
+
+# Step 5. Merge the response and predictor variables:
+
+```{r}
+inputs_weekly<- merge(all_x, cyanoHAB,
                  by.x=c("Yr", "week_bin"),
-                 by.y=c("Yr", "daynum_bin"), all.y=TRUE)
+                 by.y=c("Yr", "week_bin"), all.y=TRUE)
 ```
 
 Data files merged.
 
 # Step 4. Save the data as new data files:
 
-```{R}
-write.csv(inputs, file="Cleaned_data/Impact_model_input_data.csv")
+```{r}
+### saving weekly data file ###
+write.csv(inputs_weekly, file="Cleaned_data/Impact_model_weekly.csv")
 ```
 
 # Step 5. View and summarize the data:
@@ -161,327 +173,101 @@ a) plotting internal loads by year...
 
 ```{r}
 ### select fields needed ###
-Int_P_long<- all %>%
-  select(Yr, daynum_bin, usedate, Strat_TotP_kgday, Unstr_TotP_kgday)
-
-### reshape data frame to long ###
-IntP_long2<- melt(Int_P_long, #the table you want to reshape wide to long
-               id.vars=c("usedate", "Yr", "daynum_bin"), #the column to use as unique id
-               measure.vars=c("Strat_TotP_kgday","Unstr_TotP_kgday"), 
+int_intputs_yr<- inputs_weekly %>%
+  select(Yr, week_bin, Strat_TotP_kg, Unstr_TotP_kg) %>%
+  melt(int_intputs_yr, #the table you want to reshape wide to long
+               id.vars=c("Yr", "week_bin"), #the column to use as unique id
+               measure.vars=c("Strat_TotP_kg","Unstr_TotP_kg"), 
                #the columns where values will be taken
                variable.name="Source", #label the source of P loading
-               value.name="TotP_kgday") #label the value with units
+               value.name="TotP_kg") #label the value with units
 
 ### rename source loads ###               
-IntP_long2$Source<-as.character(IntP_long2$Source) #tell R character data held
-IntP_long2$Source[IntP_long2$Source=="Strat_TotP_kgday"] <- "stratified region"
-IntP_long2$Source[IntP_long2$Source=="Unstr_TotP_kgday"] <- "unstratified region"
+int_intputs_yr$Source<-as.character(int_intputs_yr$Source) #tell R character data held
+int_intputs_yr$Source[int_intputs_yr$Source=="Strat_TotP_kg"] <- "stratified region"
+int_intputs_yr$Source[int_intputs_yr$Source=="Unstr_TotP_kg"] <- "unstratified region"
 
 ### calculate the total annual loads ###
-IntP_long2<- IntP_long2 %>%
+int_intputs_yr<- int_intputs_yr %>%
   group_by(Yr, Source) %>% #for each year and each source
-  summarize(TotP_kgyr=sum(TotP_kgday)) #sum up all the TotP_kgday
+  summarize(TotP_kgyr=sum(TotP_kg)) %>%#sum up all the TotP_kgday
+  ungroup()
 
 ### plot the annual internal loads by source ###
-SI_fig19<- ggplot(IntP_long2, aes(x=Yr, y=TotP_kgyr, 
+SI_fig18<- ggplot(int_intputs_yr, aes(x=Yr, y=TotP_kgyr, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
   theme_classic(base_size=12) +
   labs(x="Year", y="Total P loading (kg/yr)") 
-SI_fig19 #print the plot
-ggsave(SI_fig19, file="Products/SI_figures/Figure19.png")
+SI_fig18 #print the plot
+ggsave(SI_fig18, file="Products/SI_figures/Figure18.png")
 ```
 
 Total P load by source for each year plotted.
 
-b) plotting external loads by year...
-
- plot total P load for CyanoHAB season by source for each year...
+b) plotting P loads against epi P concentration...
 
 ```{r}
-### select fields needed ###
-extP_load_long<- all %>%
-  select(Yr, daynum_bin, usedate, Patm_kgday, Pstreams_kgday, Pother_kgday, Pext_kgday, Pext_kgday_noother)
+### create data table for plots ###
+fig4_data<- inputs_weekly %>%
+  select(Yr, week_bin, avg_epiP_mgL, Int_TotP_kg, Pext_kg)
 
-### reshape data frame to long ###
-extP_load_long2<- melt(extP_load_long, #the table you want to reshape wide to long
-               id.vars=c("usedate", "Yr", "daynum_bin"), #the column to use as unique id
-               variable.name="Source", #label the source of P loading
-               value.name="TotP_kgday") #label the value with units
-
-### reformat fields ###
-extP_load_long2$Source<-as.character(extP_load_long2$Source) #tell R character data
-unique(extP_load_long2$Source)
-
-extP_load_source<- extP_load_long2 %>% #filter for the three factors
-  filter(Source=="Patm_kgday"| Source=="Pstreams_kgday"|Source=="Pother_kgday") 
-extP_load_source$Source[extP_load_source$Source=="Patm_kgday"] <- "atmosphere"
-extP_load_source$Source[extP_load_source$Source=="Pstreams_kgday"] <- "streams"
-extP_load_source$Source[extP_load_source$Source=="Pother_kgday"] <- "other"
-
-### summarize each source by year ###
-extP_load_source_sum<- extP_load_source %>%
-  group_by(Yr, Source) %>%
-  summarize(totP_kgyr=sum(TotP_kgday, na.rm=TRUE))
-extP_load_source_sum #print table
-
-### plot total extP by source and year ###  
-SI_fig12<- ggplot(extP_load_source_sum, aes(x=Yr, y=totP_kgyr, 
-                             fill=Source)) + #separate sources by fill color
-  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
-  scale_fill_manual(values=c("grey", "white", "black")) + #atm = grey, streams=black, other=white
-  theme_classic(base_size=12) +
-  labs(x="Year", y="External total P loading (kg/yr)")
-SI_fig12 #print plot
-ggsave(SI_fig12, file="Products/SI_figures/Figure12.png")
-```
-
-Total P load by source for each year plotted.
-
-c) plotting internal versus external loads by year, with/without P_other...
-
-```{r}
-### select fields needed ###
-Me_load_longA<- all %>%
-  select(Yr, daynum_bin, Pext_kgday, Int_TotP_kgday)
-
-### reshape data frame from wide to long ###
-Me_load_longA<- melt(Me_load_longA, #the table you want to reshape wide to long
-               id.vars=c("Yr","daynum_bin"), #the column to use as unique id
-               measure.vars=c("Pext_kgday","Int_TotP_kgday"), 
+fig4a<- fig4_data %>%
+  select(Yr, Int_TotP_kg, Pext_kg) %>%
+  melt(fig4a, #the table you want to reshape wide to long
+               id.vars=c("Yr"), #the column to use as unique id
+               measure.vars=c("Int_TotP_kg","Pext_kg"), 
                #the columns where values will be taken
                variable.name="Source", #label the source of P loading
-               value.name="TotP_kgday" #label the value with units
-               )
+               value.name="TotP_kg") #label the value with units
 
-### reformat fields ###
-Me_load_longA$Source<-as.character(Me_load_longA$Source) #tell R character data held
-unique(Me_load_longA$Source)
+### rename source loads ###               
+fig4a$Source<-as.character(fig4a$Source) #tell R character data held
+fig4a$Source[fig4a$Source=="Int_TotP_kg"] <- "internal P load"
+fig4a$Source[fig4a$Source=="Pext_kg"] <- "external P load"
 
-Me_load_longA$Source[Me_load_longA$Source=="Pext_kgday"] <- "external load"
-Me_load_longA$Source[Me_load_longA$Source=="Int_TotP_kgday"] <- "internal load"
-
-### calculate annual P loads from each source and year ###
-Me_load_longA<- Me_load_longA %>%
+### calculate the total annual loads ###
+inputs_yr<- fig4a %>%
   group_by(Yr, Source) %>% #for each year and each source
-  summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
+  summarize(TotP_kgyr=sum(TotP_kg)) %>%#sum up all the TotP_kgday
+  ungroup()
 
-### plot P loads by source and year ###
-SI_fig13a<- ggplot(subset(Me_load_longA), aes(x=Yr, y=TotP_kgday, 
-                             fill=Source)) + #separate sources by fill color
+### create top plot ###
+fig4a<- ggplot(data=inputs_yr, aes(x=as.character(Yr), y=TotP_kgyr, fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
   theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") +
-  ggtitle("a) Pext with Pout")
-SI_fig13a #print the plot
+  labs(x="Year", y="Total P load (kg/yr)", title="a)") +
+  theme(legend.position=c(0.15,0.90))
+fig4a
 
-### select fields needed ###
-Me_load_longB<- all %>%
-  select(Yr, daynum_bin, Pext_kgday_noother, Int_TotP_kgday)
-
-### reshape data frame from wide to long ###
-Me_load_longB<- melt(Me_load_longB, #the table you want to reshape wide to long
-               id.vars=c("Yr","daynum_bin"), #the column to use as unique id
-               measure.vars=c("Pext_kgday_noother","Int_TotP_kgday"), 
-               #the columns where values will be taken
-               variable.name="Source", #label the source of P loading
-               value.name="TotP_kgday" #label the value with units
-               )
-
-### reformat fields ###
-Me_load_longB$Source<-as.character(Me_load_longB$Source) #tell R character data held
-unique(Me_load_longB$Source)
-
-Me_load_longB$Source[Me_load_longB$Source=="Pext_kgday_noother"] <- "external load"
-Me_load_longB$Source[Me_load_longB$Source=="Int_TotP_kgday"] <- "internal load"
-
-### calculate annual P loads from each source and year ###
-Me_load_longB<- Me_load_longB %>%
-  group_by(Yr, Source) %>% #for each year and each source
-  summarize(TotP_kgday=sum(TotP_kgday)) #sum up all the TotP_kgday
-
-### plot P loads by source and year ###
-SI_fig13b<- ggplot(subset(Me_load_longB), aes(x=Yr, y=TotP_kgday, 
-                             fill=Source)) + #separate sources by fill color
-  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
-  scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") +
-  ggtitle("b) Pext without Pout")
-SI_fig13b #print the plot
-
-SI_fig13<- ggarrange(SI_fig13a, SI_fig13b, nrow=2,ncol=1)# make plot with a over b
-SI_fig13 #print plot
-ggsave(SI_fig13, file="Products/SI_figures/Figure13.png")
-```
-
-P loads by source graphed.
-
-```{r}
-### plotting alternative figure with epi P concentration ###
-epiP<- all %>%
-  select(Yr, daynum_bin, epi_TotP_mgL)
-
-fig5a<- ggplot() + #separate sources by fill color
-  geom_bar(data=Me_load_longA, aes(x=Yr, y=TotP_kgday,fill=Source), position="stack", stat="identity", color="black") + #stacked bar graph
-  scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") +
-  theme(legend.position=c(0.1,0.77))
-
-fig5b<- ggplot(data=epiP, aes(y=epi_TotP_mgL, x=as.character(Yr))) +
+fig4b<- ggplot(data=fig4_data, aes(y=avg_epiP_mgL, x=as.character(Yr))) +
   geom_boxplot() + 
-  labs(x="Year", y="Epilimnion Total P (mg/L)") +
+  labs(x="Year", y="Epilimnion Total P (mg/L)", title="b)") +
   theme_classic() 
-fig5<- ggarrange(fig5a, fig5b, nrow=2, ncol=1)
-fig5 #print the plot
-ggsave(fig5, file="Products/Figure5.png")
+fig4b
+fig4<- ggarrange(fig4a, fig4b, nrow=2, ncol=1)
+fig4 #print the plot
+ggsave(fig4, file="Products/Figure4.png")
 ```
 
-b) comparing the average annual P load between Pint and Pstreams...
+# Step 6. Compare average annual P load between Pint and Pstreams...
 
 ```{r}
-Pload_comp<- all %>%
+Pload_comp<- inputs_weekly %>%
   group_by(Yr) %>%
-  summarize(Pstreams_kgyr=sum(Pstreams_kgday),
-            Int_TotP_kgyr=sum(Int_TotP_kgday))
+  summarize(Pstreams_kgyr=sum(Pstreams_kg),
+            Int_TotP_kgyr=sum(Int_TotP_kg))
 mean(Pload_comp$Int_TotP_kgyr/Pload_comp$Pstreams_kgyr)
 
 Pload_comp_dry<- Pload_comp %>%
-  filter(Yr<2016)
+  filter(Yr!=2016 & Yr!=2018)
 mean(Pload_comp_dry$Int_TotP_kgyr/Pload_comp_dry$Pstreams_kgyr)
 
 Pload_comp_wet<- Pload_comp %>%
-  filter(Yr>=2016)
+  filter(Yr==2016 | Yr==2018)
 mean(Pload_comp_wet$Int_TotP_kgyr/Pload_comp_wet$Pstreams_kgyr)
 ```
 
 Comparison calculated.
-
-# Step 4. Describe data:
-
-checking for normality...
-
-```{r}
-par(mfrow=c(2,5))
-hist(inputs$Chla_ugL, breaks=18,#histograph of Chl-a
-     main="non-transformed",
-     xlab="Chl-a (ug/L)") 
-hist(inputs$CD_cellsmL, breaks=18,#histograph of CD
-     main="non-transformed",
-     xlab="CD (cells/mL)") 
-hist(inputs$Pext_kg, breaks=18,#histogrpah of P_ext
-     main="non-transformed",
-     xlab="P_ext (kg)") 
-hist(inputs$Int_TotP_kg, breaks=18,#histograph of P_int
-     main="non-transformed",
-     xlab="P_int (kg)") 
-hist(inputs$avgTotP_HEratio, breaks=18,#histograph of P_hypo_epi
-     main="non-transformed",
-     xlab="P_hypo:P_epi") 
-hist(log10(inputs$Chla_ugL), breaks=18,#histograph of log10(Chl-a)
-     main="log-transformed",
-     xlab="Chl-a (ug/L)") 
-hist(log10(inputs$CD_cellsmL), breaks=18,#histograph of log10(CD)
-     main="log-transformed",
-     xlab="CD (cells/mL)") 
-hist(log10(inputs$Pext_kg), breaks=18,#histograph of log10(P_ext)
-     main="log-transformed",
-     xlab="P_ext (kg)") 
-hist(log10(inputs$Int_TotP_kg), breaks=18,#histograph of log10(P_int)
-     main="log-transformed",
-     xlab="P_int (kg)") 
-hist(log10(inputs$avgTotP_HEratio), breaks=18,#histograph of log10(P_hypo:epi) 
-     main="log-transformed",
-     xlab="P_hypo:P_epi") 
-par(mfrow=c(1,1)) #return to default
-#save manually
-```
-
-Comparison of non-transformed and transformed data graphed.
-
-# Step 5. Determine the appropriate lag for predictor variables:
-
-a) checking lags for Chl-a...
-
-```{r}
-### regressing Chla, t against Chla, t-k ###
-regk_Chla<- lm(formula=Chla_ugL ~ #response variable
-               lag(Chla_ugL, n=1), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=inputs$Chla_ugL, y=lag(inputs$Chla_ugL, n=1),
-     xlab="Chl-a, t-k (ug/L)", ylab="Chl-a, t (ug/L)")
-abline(regk_Chla)
-summary(regk_Chla)#prints the lm output
-
-### regressing Chla, t against external P load, t-k ###
-regk_Pext<- lm(formula=Chla_ugL ~ #response variable
-               log10(Pext_kg), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=log10(inputs$Pext_kg), y=inputs$Chla_ugL,
-     xlab="log10(external P load), t-k (kg)", ylab="Chl-a, t (ug/L)")
-abline(regk_Pext)
-summary(regk_Pext)#prints the lm output
-
-### regressing Chla, t against internal P load, t-k ###
-regk_Pint<- lm(formula=Chla_ugL ~ #response variable
-               Int_TotP_k, #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=inputs$Int_TotP_kgday, y=inputs$Chla_ugL,
-     xlab="internal P load, t-k (kg)", ylab="Chl-a, t (ug/L)")
-abline(regk_Pint)
-summary(regk_Pint)#prints the lm output
-
-### regressing Chla, t against P_hypo:epi, t-k ###
-regk_Pratio<- lm(formula=Chla_ugL ~ #response variable
-               lag(avgTotP_HEratio, n=1), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=lag(inputs$avgTotP_HEratio, n=1), y=inputs$Chla_ugL,
-     xlab="P ratio hypo:epi, t-k", ylab="Chl-a, t (ug/L)")
-abline(regk_Pratio)
-summary(regk_Pratio)#prints the lm output
-```    
-
-The lags of best fit compared.
-
-b) checking lags for CD_t-k...
-
-```{r}
-### regressing CD_t against CD_t-k ###
-regk_CD<- lm(formula=CD_cellsmL ~ #response variable
-               lag(CD_cellsmL, n=1), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=inputs$CD_cellsmL, y=lag(inputs$CD_cellsmL, n=1),
-     xlab="Cyanobacteria, t-k (cells/mL)", ylab="Cyanobacteria, t (cells/mL)")
-abline(regk_CD)
-summary(regk_CD)#prints the lm output
-
-### regressing CD_t against external P load, t-k ###
-regk_Pext<- lm(formula=CD_cellsmL ~ #response variable
-               log10(Pext_kg), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=log10(inputs$Pext_kg), y=inputs$CD_cellsmL,
-     xlab="log10(external P load), t-k (kg/day)", ylab="Cyanobacteria, t (cells/mL)")
-abline(regk_Pext)
-summary(regk_Pext)#prints the lm output
-
-### regressing Chla, t against internal P load, t-k ###
-regk_Pint<- lm(formula=CD_cellsmL ~ #response variable
-               lag(Int_TotP_kgday, n=2), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=lag(inputs$Int_TotP_kgday, n=2), y=inputs$CD_cellsmL,
-     xlab="internal P load, t-k (kg)", ylab="Cyanobacteria, t (cells/mL)")
-abline(regk_Pint)
-summary(regk_Pint)#prints the lm output
-
-### regressing CD, t against P_hypo:epi, t-k ###
-regk_Pratio<- lm(formula=CD_cellsmL ~ #response variable
-               lag(avgTotP_HEratio, n=3), #vary the k to print the regressions
-              data=inputs) #data frame
-plot(x=lag(inputs$avgTotP_HEratio, n=1), y=inputs$CD_cellsmL,
-     xlab="P ratio hypo:epi, t-1 ", ylab="CD, t (cells/mL)")
-abline(regk_Pratio)
-summary(regk_Pratio) #prints the lm output
-```   
