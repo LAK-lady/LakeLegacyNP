@@ -14,8 +14,8 @@ The purpose of this program is to define the cyanoHAB season of the lake. Two va
 a) loading the dependent packages...
 
 ```{r}
-library(ggplot2) #needed for plots
 library(dplyr) #needed for reshaping/reformating data
+library(ggplot2) #needed for plots
 library(ggpubr) #needed to plot mupltiple plots together
 ```
 
@@ -65,9 +65,11 @@ Secchi depth data defined and filtered.
 
 c) merging the data...
 ```{r}
-Figure2_data<- merge(Me_cyanoRB, Me_Secchi, by=c("sampledate"),
-                       all =TRUE) #merges data frames and keeps all records 
-Figure2_data<- Figure2_data %>%
+### merging the two data files ###
+fig2_data<- merge(Me_cyanoRB, Me_Secchi, by=c("sampledate"),
+                       all=TRUE)  #merges data frames and keeps all records 
+### reformatting dates ###
+fig2_data<- fig2_data %>%
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
          daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
 ```
@@ -80,7 +82,7 @@ a)  plotting Secchi depth and cyanobacteria relative biovolume to get cyanoHAB s
 
 ```{r}
 ### plot Secchi depth by day of year ###
-a<- ggplot(data=Figure2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
+a<- ggplot(data=fig2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
   geom_point() + #plots observations as points
   theme_classic(base_size=12) +
   geom_smooth() + #adds regression curve
@@ -91,7 +93,7 @@ a<- ggplot(data=Figure2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
            xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 
 ### plot cyanobacteria relative biovolume by day of year ###
-b <- ggplot(data=Figure2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano RB across day
+b <- ggplot(data=fig2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano RB across day
   geom_point() + #plots observations as points
   theme_classic(base_size=12) +
   geom_smooth() + #adds regression curve
@@ -104,8 +106,8 @@ b <- ggplot(data=Figure2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano 
            xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 fig2<- ggarrange(a, b, nrow=2, ncol=1) #plot figures together
 fig2 #print figure
-ggsave("Products/Figure2_color.png") #saves plot to Products folder
-write.csv(Figure2_data, file="Products/Figure2_data.csv") #save data used to make figure
+ggsave(fig2, file="Products/Figure2_color.png") #saves plot to Products folder
+write.csv(fig2_data, file="Products/Figure2_data.csv") #save data used to make figure
 ```
 
 Data plotted.
