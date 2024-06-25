@@ -1,0 +1,154 @@
+---
+title: "TotalP_external_atmdep"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-05-30'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to calculate P load from atmospheric deposition. 
+P load from atm = P_wet + P_dry.
+P_wet = P concentration * daily Precipitation volume
+P_dry = P deposition * Lake surface area
+
+
+# Step 1. Load dependent packages and data needed:
+
+a) Loading dependent packages...
+```{r}
+library(dplyr) #needed for reshaping/reformaing data
+library(ggplot2) #needed for plots
+```
+
+Packages loaded.
+
+b) Loading the data needed...
+Note, ensure date data is formatted in R as Date.
+
+```{r}
+precip<- read.csv(file="Original_data/NWS_data.csv")
+```
+
+Precipitation data loaded.
+
+# Step 2. Format and filter the data:
+
+a) filtering data...
+```{r}
+precip<- precip %>%
+  select(sampledate, Precipitation_in) %>%
+  mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y", #reformat as date
+                            origin="1899-12-30"), #format as date
+         Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j"))) %>% #add daynum
+  filter(Yr>=2013 & Yr<=2018) #filter for study period
+```
+
+Data filtered.
+
+b) formatting data...
+
+```{r}
+precip2<- precip %>%
+  mutate(Precipitation_in=ifelse(Precipitation_in=="T", "", Precipitation_in),#remove flagged records with value "T"
+         Precipitation_in=as.numeric(Precipitation_in)) #format as numeric
+```
+
+Data formated.
+
+c) address missing values...
+
+```{r}
+precip2<- precip2 %>%
+  mutate(Precipitation_in=na.approx(Precipitation_in, na.rm=F, rule=2)) #fill missing vlaues with na approx or closest value
+summary(precip2$Precipitation_in) #check for NAs
+```
+
+Missing values interpolated
+
+# Step 3. Calculate the daily P loads:
+
+a) defining conversion coefficients...
+
+```{r}
+### define conversion coefficients ###
+km2_m2= 1000000/1 #conversion factor from km^2 to m^2
+A_lake_m2 = 39.40*km2_m2 #surface area of lake in m^2 
+mg_kg = 1/1000000 #conversion factor from mg to kg
+in_m = 1/39.3701 #conversion factor from in to m (1 m = 39.701 inches)
+m3_L = 1000/1 #conversion factor from m^3 to L (1000 L = 1 m^3)
+
+### define the deposition rates ###
+P_atm_dry = 0.17 #mg P/m2-day rate of P dry deposition during summer (Soranno et 
+#al 1997)
+P_atm_wet = 0.032 #mg/L rate of P wet deposition (Soranno et al 1997)
+```
+
+Conversion coefficients defined.
+
+b) transforming and filtering the data...
+
+```{r}
+atmP<- precip2 %>%
+  mutate(dryP_atm_kgday=((P_atm_dry*A_lake_m2)*mg_kg), #calculate dry P
+         wetP_atm_kgday=(P_atm_wet*m3_L*(Precipitation_in*in_m*A_lake_m2)*mg_kg),
+         #calculate wet P deposited
+         totP_atm_kgday=(dryP_atm_kgday+wetP_atm_kgday)) #calculate total P_atm
+summary(atmP) #check for NAs
+```
+
+Total P from atmospheric deposition transformed and filtered.
+
+# Step 3. Save estimated P atm deposition as separate data file:
+
+```{r}
+write.csv(atmP, file="Cleaned_data/TotalP_atm.csv")
+```
+
+New file saved as "TotalP_atm.csv" in the Cleaned_data folder.
+# Step 4. View and summarize the data:
+
+a) calculating average daily total P loading from atm deposit during CyanoHAB season...
+
+```{r}
+precip_dayavg<- atmP %>%  
+  filter(daynum>= 196 & daynum<= 252) %>% #cyanoHAB season
+  summarize(mean=mean(totP_atm_kgday, #average daily total P loading
+                      na.rm=TRUE),
+            se=(sd(totP_atm_kgday, na.rm=TRUE)/sqrt(length(totP_atm_kgday))),
+            min=min(totP_atm_kgday, na.rm=TRUE),
+            max=max(totP_atm_kgday, na.rm=TRUE)
+            )
+precip_dayavg
+```
+
+b) calculating average annual total P loading from atm deposit during CyanoHAB season...
+
+```{r}
+precip_sumtot<- atmP %>%
+  filter(daynum>= 196 & daynum<= 252) %>% #cyanoHAB season
+  group_by(Yr) %>% #group all records by year
+  summarise(sum_TP_kgyr=sum(totP_atm_kgday))  #calculate the total P load
+precip_sumtot
+sum_table<-precip_sumtot %>%
+  summarize(mean=mean(sum_TP_kgyr),
+          se=(sd(sum_TP_kgyr)/sqrt(length(sum_TP_kgyr))),
+            min=min(sum_TP_kgyr),
+            max=max(sum_TP_kgyr)
+            )
+sum_table
+```
+
+c) plotting P_atm by year (cyanoHAB season only)...
+
+```{r}
+SI_fig11<- ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
+  geom_col() +
+  theme_classic(base_size=12) +
+  labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)")
+SI_fig11
+ggsave("Products/SI_figures/Figure11.png")
+```
+
+Total P load from atm deposit plotted by year for CyanoHAB season.

@@ -1,0 +1,406 @@
+---
+title: "cyanoHAB_severity.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-06-10'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The following text and code documents how algal data was processed and analyzed.
+Data was also converted to time series.
+
+# Step 1. Load dependent packages and data:
+
+a) loading the dependent packages...
+
+```{r}
+library(ggplot2) #needed for plots
+library(dplyr) #needed for reshaping/reformating data
+library(ggpubr) #needed for graphing multiple plots
+library(zoo) #needed for na aggregate
+library(plotly) #needed for 3D plots
+```
+
+Packages loaded.
+
+b) loading the data...
+
+```{r}
+### load phytoplankton cell count data ###
+phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+
+### load chlorophyll-a data ###
+Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
+```
+
+Data loaded. 
+
+# Step 2. Calculate cyanobacteria cell density (CD):
+
+a) reformatting and filtering the data...
+
+```{r}
+### reformatting and filtering phyto data ###
+Me_cyano<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>%  #adds field with day
+  rename(CD_cellsmL=cells_per_ml)%>% #renames field 
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta", #filter for cyanobacteria
+         Yr>=2013 & Yr<=2018) %>% #filter for study period
+  select(sampledate, CD_cellsmL)
+
+### reformatting and filtering chl-a data ###
+Me_Chl<- Chl %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #renames field to common name
+  rename(Chla_ugL= tri_chl_spec) %>% #renames field to common name with units)
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
+         rep=="1",#remove QA analytic replicates
+         Yr>=2013 & Yr<=2018, #filter for study period
+         Yr!=2017) %>% #filter the error data out
+  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
+  select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
+```
+
+Data reformatted and filtered.
+
+b) calculating cyano cell density (CD)...
+
+```{r}
+Me_cyano<- Me_cyano %>%  
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(CD_cellsmL=sum(CD_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j")))  #adds field with day
+```
+
+CD calculated.
+
+# Step 3. View the data available:
+
+a) plotting Chl-a data available...
+
+```{r}
+### filter data to cyanoHAB season ###
+fig3a_data<- Me_Chl %>%
+  filter(daynum>= 189 & daynum<= 259) #day num +- 7 days
+
+### plot cyanoHAB severity as chl-a over time ###
+SI_fig3a<- ggplot(data=fig3a_data, aes(x=daynum, y=Chla_ugL)) + #plots Chl-a across date
+  geom_point() + #adds points at observations
+  geom_line() + #adds lines between 
+  facet_wrap(~Yr) +
+  theme_classic(base_size=12) +
+  labs(x="Day of Year", y="Total Chl-a (ug/L)", title="a)") +
+  annotate('rect', xmin=min(fig3a_data$daynum), xmax=max(fig3a_data$daynum),
+           ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=min(fig3a_data$daynum), xmax=max(fig3a_data$daynum),
+           ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=min(fig3a_data$daynum), xmax=max(fig3a_data$daynum),
+           ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
+SI_fig3a
+```
+
+Chl-a data plotted. 
+
+b) Plotting CD data available...
+
+```{r}
+### filter data to cyanoHAB season ###
+fig3b_data<- Me_cyano %>%
+  filter(daynum>= 189 & daynum<= 259) #day num +- 7 days
+
+### plot cyanoHAB severity as CD over time ###
+SI_fig3b<- ggplot(data=fig3b_data, aes(x=daynum, y=CD_cellsmL))+
+  geom_point() +  #point plot 
+  geom_line() + #lines between points
+  facet_wrap(~Yr) + #by year
+  theme_classic(base_size=12)+
+  annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
+           ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
+           ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
+           ymin=100000, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
+  labs(x="Day of Year", y="Cyanobacteria Density (cells/mL)", title="b)")
+SI_fig3b #print image
+```
+
+
+c) plotting chla and CD together...
+
+```{r}
+SI_fig3<- ggarrange(SI_fig3a, SI_fig3b, ncol=2, nrow=1, widths=c(0.5, 0.5))
+SI_fig3
+ggsave("Products/SI_figures/Figure3_color.png") #saves plot to Products folder
+```
+
+Chla and CD data plotted. 
+
+d) merging the data files...
+```{r}
+### merge data files ###
+Chla_CD<- merge(Me_Chl, Me_cyano, by=c("sampledate", "Yr", "daynum"), all=TRUE) 
+```
+
+Data files merged.
+
+# Step 4. Bin observations into expected frequencies:
+
+a) defining expected observation frequencies...
+
+```{r}
+### define the number of observation years ###
+Yr<- seq(from=2013, #define year start of study period
+             to=2018, #define year end of study period
+             by=1) #creates a sequence every 1 year
+Yr #prints the expected years of data
+
+### define the observation frequency ###
+daynum_bins<- seq(from=196, #define date start of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
+                  by=14) #creates a sequence every 14 days 
+daynum_bins #prints the expected observation dates of data
+
+### create data frame with expected observations ###
+cyanoHAB_bins<- data.frame(Yr=rep(Yr, each=5), #repeat Yr for every daynum 
+                           daynum_bin=rep(daynum_bins, times=6)) #repeat daynum for every year
+```
+
+Defined expected observation frequency.
+
+b) binning observed dates into expected dates...
+
+```{r}
+Chla_CD <- Chla_CD  %>%
+  filter(daynum>= 189 & daynum<= 259) %>% #filter for cyanoHAB season
+  mutate(daynum_bin=
+         ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
+                daynum_bins[1], #yes returns bin 1
+                ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
+              #if observation is > bin 2 min and <= bin 3 min
+              daynum_bins[2], #yes returns bin 2
+              ifelse(daynum>=(daynum_bins[3]-7)&daynum<(daynum_bins[4]-7),
+                     #if observation is > bin 3 min and <= bin 4 min
+                     daynum_bins[3], #yes returns bin 3
+                     ifelse(daynum>=(daynum_bins[4]-7)&daynum<(daynum_bins[5]-7),
+                            #if observation is > bin 4 min and <= bin 5 min 
+                            daynum_bins[4], #yes returns bin 4
+                            daynum_bins[5])))))#no returns bin 5
+                     
+Chla_CD<- Chla_CD %>% 
+  filter(!duplicated(cbind(Yr, daynum_bin), fromLast = TRUE))  #remove first duplicate
+```
+
+Observed dates assigned to closest expected dates.
+
+c) merging the data frames with expected bins...
+Note, R only merges two data frames at one time.
+
+```{r}
+cyanoHAB<- merge(cyanoHAB_bins, #x data frame
+                 Chla_CD, #y data frame
+                 by=c("Yr","daynum_bin"),
+                 all.x=TRUE) #define the key fields
+```
+
+Data merged.
+
+# Step 5. Check for missing values and address:
+
+a) checking for NAs...
+
+```{r}
+### checking for NAs ###
+summary(cyanoHAB)
+```
+
+3 NAs identified.
+
+b) if NAs randomly missing, replacing with annual mean...
+
+```{r}
+### calculate annual means ###
+yr_mean<- cyanoHAB %>%
+  group_by(Yr) %>%
+  summarize(avg_Chla=mean(Chla_ugL, na.rm=TRUE),
+            se_Chla=(sd(Chla_ugL, na.rm=TRUE)/sqrt(length(Chla_ugL))), 
+            avg_CD=mean(CD_cellsmL, na.rm=TRUE),
+            se_CD=(sd(CD_cellsmL, na.rm=TRUE)/sqrt(length(CD_cellsmL))))
+yr_mean
+
+### fill missing values with the annual mean ###
+cyanoHAB<- cyanoHAB %>%
+  group_by(Yr) %>%
+  mutate(across(Chla_ugL, ~na.aggregate(., FUN=mean, na.rm=FALSE)),
+         across(CD_cellsmL, ~na.aggregate(., FUN=mean, na.rm=TRUE))) %>%
+  ungroup()
+
+### check that missing values replaced with means ###
+summary(cyanoHAB$Chla_ugL)
+summary(cyanoHAB$CD_cellsmL)
+```
+
+NAs replaced.
+
+# Step 6. Interpolate weekly response values:
+
+a) define expected frequencies...
+
+```{r}
+### determine expected observation frequencies ###
+week_bins<- seq(from=196, #define date start of CyanoHAB season
+                  to=252, #define date end of CyanoHAB season
+                  by=7) #creates a sequence every week 
+week_bins #prints the expected observation dates of data
+
+### create data frame with the frequencies wanted ###
+week_bins<- data.frame(Yr=rep(Yr, each=9),week_bin=rep(week_bins, times=6))
+```
+
+Expected weekly frequencies defined.
+
+b) merging data to expected frequencies... 
+
+```{r}
+### merge observations with data frame of frequencies ###
+cyanoHAB2<- merge(week_bins, cyanoHAB, by.x=c("Yr","week_bin"), 
+                      by.y=c("Yr", "daynum_bin"), all=TRUE) 
+```
+
+Weekly frequencies added to observations.
+
+c) interpolating missing daily values...
+
+```{r}
+### linearly interpolate the missing values ###
+cyanoHAB_approx<- cyanoHAB2 %>%  
+  group_by(Yr) %>%
+  mutate(Chla_ugL=na.approx(Chla_ugL, na.rm=F, rule=2),
+         CD_cellsmL=na.approx(CD_cellsmL, na.rm=F, rule=2)) %>% #interpolates where NA
+  ungroup() 
+```
+
+Daily observations interpolated.
+
+# Step 7. Add fields with lagged values:
+
+```{r}
+cyanoHAB_approx<- cyanoHAB_approx %>%
+  mutate(Chla_ugL_k7=lag(Chla_ugL, n=1), 
+         CD_cellsmL_k7=lag(CD_cellsmL, n=1),
+         Chla_ugL_k14=lag(Chla_ugL, n=2), 
+         CD_cellsmL_k14=lag(CD_cellsmL, n=2),
+         Chla_ugL_k21=lag(Chla_ugL, n=3), 
+         CD_cellsmL_k21=lag(CD_cellsmL, n=3),
+         Chla_ugL_k28=lag(Chla_ugL, n=4), 
+         CD_cellsmL_k28=lag(CD_cellsmL, n=4)) 
+```
+
+Field with lagged values added.
+
+# Step 8. Save as new data files:
+
+```{r}
+### save the new Chla data file ###
+write.csv(cyanoHAB_approx, file="Cleaned_data/cyanoHAB_severity.csv")
+```
+
+# Step 9: Make 3D graphs of response variables for entire year:
+
+a) 3D plot of Chl-a across day number and year...
+
+```{r}
+Me_Chl<- Chl %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
+         Chla_ugL= tri_chl_spec, #renames field to common name with units
+         ) %>% 
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
+         rep=="1") %>% #remove QA analytic replicates
+  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
+  select(sampledate, Chla_ugL) #selects only fields of interest
+
+date_range<- seq( #creates a vector of sequence data
+  min(Me_Chl$sampledate), #starting at the first sample date
+  max(Me_Chl$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_Chl$sampledate, #across date
+  Me_Chl$Chla_ugL, #the predicted values of Chl-a
+  xout=date_range) #for every 1 day
+Chla_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  Chla_ugL=interpolated$y) #renames the new vector as common field with units
+
+Chla_interp<- Chla_interp %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
+         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
+         ) %>%
+  filter(Yr>=2013 & Yr<=2018) #filter for study period
+
+SI_fig4a<- plot_ly(x=Chla_interp$Yr, 
+  y=Chla_interp$daynum, 
+  z=Chla_interp$Chla_ugL, 
+  type="scatter3d", mode="markers",
+  color=Chla_interp$Chla_ugL) %>%
+  layout(scene=list(xaxis=list(title="Year"),
+         yaxis=list(title="Day of Year"),
+         zaxis=list(title="Chlorophyll-a (ug/L)")))
+SI_fig4a #prints the plot
+#save plot mannually
+```
+
+b) 3D plot of CD across day number and year...
+
+```{r}
+Me_cyanoRB<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
+  filter(Yr>=2013 & Yr<=2018) #filter for study years
+
+date_range<- seq( #creates a vector of sequence data
+  min(Me_cyanoRB$sampledate), #starting at the first sample date
+  max(Me_cyanoRB$sampledate), #ending at the last sample date
+  by="1 day") #observations every day  
+interpolated<- approx( #creates a vector of data that linearly interpolates 
+  Me_cyanoRB$sampledate, #across date
+  Me_cyanoRB$CD_cellsmL, #the predicted values of Cyanos
+  xout=date_range) #for every 1 day
+CD_interp <- data.frame( #creates a new data frame that has 
+  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
+  CD_cellsmL=interpolated$y) #renames the new vector as common field with units
+
+CD_interp<- CD_interp %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
+         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
+         ) %>%
+  filter(Yr>=2013 & Yr<=2018) #filter for study period
+
+SI_fig4b<- plot_ly(x=CD_interp$Yr, 
+  y=CD_interp$daynum, 
+  z=CD_interp$CD_cellsmL, 
+  type="scatter3d", mode="markers",
+  color=CD_interp$CD_cellsmL)%>%
+  layout(scene=list(xaxis=list(title="Year"),
+         yaxis=list(title="Day of Year"),
+         zaxis=list(title="Cyanobacteria Density (cells/mL)")))
+SI_fig4b #prints the figure
+#save manually
+```
+
+3D plots graphed.

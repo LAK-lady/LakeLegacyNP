@@ -1,0 +1,113 @@
+---
+title: "cyanoHAB_season"
+author: "Lauren Knose"
+date: "2024-05-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to define the cyanoHAB season of the lake. Two variables are needed for this program, Secchi disk depth and phytoplankton cell counts. 
+
+# Step 1. Load dependent packages and data:
+
+a) loading the dependent packages...
+
+```{r}
+library(dplyr) #needed for reshaping/reformating data
+library(ggplot2) #needed for plots
+library(ggpubr) #needed to plot mupltiple plots together
+```
+
+Packages loaded.
+
+b) loading the data...
+
+```{r}
+### load the Secchi disk depth data ###
+Secchi<- read.csv(file="Original_data/ntl31_v9_secchi.csv")
+
+### load the phytoplankton cell count data ###
+phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE)
+```
+
+Data loaded.
+
+# Step 2. Reformat and filter data:
+
+a) reformatting and filtering data for cyanobacteria relative biovolume (CRB) and cyanobacteria density (CD)...
+
+```{r}
+Me_cyanoRB<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
+  filter(lakeid=="ME", #filter for Lake Mendota data
+         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
+         division=="Cyanophyta") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(cyano_relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relbiovol<=100) #remove any invalid records (>100%  not valid entry)
+```
+
+Cyanobacteria data defined and filtered.
+
+b) defining and filtering the Secchi depth data...
+
+```{r}
+Me_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"),#tells R to format field as Date
+         SD_m=secnview) %>% #adds units to field
+  filter(lakeid=="ME") %>% #filter for Lake Mendota data
+  select(sampledate, SD_m) #select the fields needed
+```
+
+Secchi depth data defined and filtered.
+
+c) merging the data...
+```{r}
+### merging the two data files ###
+fig2_data<- merge(Me_cyanoRB, Me_Secchi, by=c("sampledate"),
+                       all=TRUE)  #merges data frames and keeps all records 
+### reformatting dates ###
+fig2_data<- fig2_data %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j"))) #adds field with day
+```
+
+Data merged.
+
+# Step 3. View the data available:
+
+a)  plotting Secchi depth and cyanobacteria relative biovolume to get cyanoHAB season...
+
+```{r}
+### plot Secchi depth by day of year ###
+a<- ggplot(data=fig2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
+  geom_point() + #plots observations as points
+  theme_classic(base_size=12) +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", y="Secchi depth (m)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+
+### plot cyanobacteria relative biovolume by day of year ###
+b <- ggplot(data=fig2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano RB across day
+  geom_point() + #plots observations as points
+  theme_classic(base_size=12) +
+  geom_smooth() + #adds regression curve
+  labs(x="Day of year", 
+       y="Cyanobacteria relative biovolume 
+       (as % total phytoplankton biovolume)") +
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+  annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
+           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+fig2<- ggarrange(a, b, nrow=2, ncol=1) #plot figures together
+fig2 #print figure
+ggsave(fig2, file="Products/Figure2_color.png") #saves plot to Products folder
+write.csv(fig2_data, file="Products/Figure2_data.csv") #save data used to make figure
+```
+
+Data plotted.

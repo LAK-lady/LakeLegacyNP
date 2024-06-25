@@ -1,0 +1,223 @@
+---
+title: "TotalP_internal.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-06-01'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to calculate the internal legacy P loading for Lake Mendota, WI.
+
+# Step 1. Load dependent packages and data needed:
+
+a) loading dependent packages...
+
+```{r}
+library(ggplot2) #needed for plots
+library(dplyr) #needed for reformating data
+library(zoo) #needed to linearly interpolate missing values
+library(reshape2) #needed to reshape data from wide to long
+```
+
+Packages loaded.
+
+b) loading dependent data...
+
+```{r}
+P_vol<- read.csv(file="Cleaned_data/TotalP_water.csv") 
+P_ratio<- read.csv(file="Cleaned_data/TotalP_ratio.csv")
+```
+
+# Step 2. Calculate daily internal P loads:
+
+a) calculating Pstrat...
+
+```{r}
+### define unit conversions ###
+L_m3<- 1000 #unit conversion from L to m^3
+mg_kg<- 1/1000000 #unit conversion from mg to kg
+t<- 14 #units of time between observations in days
+
+## fill missing values ###
+P_vol2<- P_vol %>%
+  group_by(Yr) %>% #group by year
+  mutate(TotP_mgL= na.approx(TotP_mgL, na.rm=FALSE)) %>% #interpolate between obs
+  fill(TotP_mgL, .direction="up") %>% #fill remaining NAs with next value
+  ungroup()
+
+### calculate change in P mass between observations ###
+Pint<- as.data.frame(P_vol2) %>%
+  mutate(Vol_add_epi_m3=ifelse(Volchg_epi_m3>0, Volchg_epi_m3, 0),
+         Pstrat_kg=(TotP_mgL*L_m3*mg_kg*Vol_add_epi_m3), #Pmass change
+         Strat_TotP_kgday=Pstrat_kg/t) #Pint in kg/day
+```
+
+Pstrat calculated.
+
+b) calculating Punstr...
+
+```{r}
+### define units and conversion coefficients ###
+mg_kg<- 1/1000000 #conversion factor from mg to kg
+A_unstrat<- 13980000 #unstratified lake surface area, where sediments are 
+# directly adjacent to epilimnion in m^2
+Sed_P<- 2.4 # mg P/m2-day (average based on previous study by Stauffer 1987 who 
+# determined the average sediment release of P from sediments in contact with 
+#the epilimnion in Lake Mendota (original range was 1.2 to 3.5 mg P /m2-day), measured by sediment cores.
+
+### calculate P loads ###
+Pint<- Pint %>%
+  mutate(Unstr_TotP_kgday=(Sed_P*A_unstrat*mg_kg), #calculates internal P loading
+        #from unstratified area
+        Int_TotP_kgday= Unstr_TotP_kgday+Strat_TotP_kgday) #calculates total internal
+#legacy P loading)
+```
+
+Punstr calculated.
+
+# Step 3. Merge data files with P_int and P_hypo:epi: 
+
+```{r}
+### remove unnecessary fields ###
+Pint2<- Pint %>% select(c(Yr, daynum.x, sampledate, Strat_TotP_kgday, Unstr_TotP_kgday, Int_TotP_kgday))
+
+P_ratio2<- P_ratio %>% select(c(Yr, daynum, sampledate, TotP_HEratio, epi_totP_mgL))
+
+### merge observations with data frame of frequencies ###
+Int_P_all<- merge(Pint2, P_ratio2, 
+                  by.x=c("Yr","daynum.x"), 
+                  by.y=c("Yr", "daynum"), all.x=TRUE) 
+```
+
+Data merged.
+
+# Step 4. Interpolate daily Pint loads:
+
+a) determining  daily expected records...
+
+```{r}
+### determine expected observation frequencies ###
+Yr<- seq(from=2013, #define year start of study period
+             to=2018, #define year end of study period
+             by=1) #creates a sequence every 1 year
+daynum_bins<- seq(from=1, #define date start of sequence
+                  to=365, #define date end of CyanoHAB season
+                  by=1) #creates a sequence every 1 day 
+
+### create data frame with the frequencies wanted ###
+df<- data.frame(x=rep(Yr, each=365),y= rep(daynum_bins, times=6))
+df<- df %>%
+  rename(Yr=x, daynum_bin=y)
+```
+
+Daily records added.
+
+b) merging data frames...
+
+```{r}
+### merge observations with data frame of frequencies ###
+Pint_all<- merge(Int_P_all, df, 
+               by.x=c("Yr","daynum.x"), 
+               by.y=c("Yr", "daynum_bin"), all.y=TRUE) 
+```
+
+c) interpolating missing daily values...
+
+```{r}
+## interpolate between observations ###
+Pint_all<- Pint_all %>%
+  group_by(Yr) %>% #group by year
+  mutate(Strat_TotP_kgday= na.approx(Strat_TotP_kgday, na.rm=FALSE, rule=2),
+         Unstr_TotP_kgday=na.approx(Unstr_TotP_kgday, na.rm=FALSE, rule=2),
+         Int_TotP_kgday=na.approx(Int_TotP_kgday, na.rm=FALSE, rule=2),
+         TotP_HEratio=na.approx(TotP_HEratio, na.rm=FALSE, rule=2),
+         epi_totP_mgL=na.approx(epi_totP_mgL, na.rm=FALSE, rule=2)) %>% 
+  ungroup() %>%
+  rename(daynum=daynum.x)
+```
+
+Daily observations interpolated.
+
+# Step 4. Save the data as a new data file:
+
+```{r}
+write.csv(Pint_all, file="Cleaned_data/TotalP_allint.csv")
+```
+
+# Step 4. Summarize and view the data:
+
+a) calculating average daily values during the CyanoHAB season...
+
+```{r}
+### calculating average daily internal P load ###
+IntP_dayavg<- Pint_all %>%
+  filter(daynum>=196 & daynum<=252) %>%
+  summarize(mean=mean(Int_TotP_kgday, na.rm=TRUE), #calculate mean
+            se=(sd(Int_TotP_kgday, na.rm=TRUE)/sqrt(length(Int_TotP_kgday))),
+            min=min(Int_TotP_kgday, na.rm=TRUE),
+            max=max(Int_TotP_kgday, na.rm=TRUE)
+            )
+IntP_dayavg
+
+### calculating average daily P_hypo:epi ###
+Pratio_dayavg<- Pint_all %>%
+  filter(daynum>=196 & daynum<=252) %>%
+  summarize(mean=mean(TotP_HEratio, na.rm=TRUE), #calculate mean
+            se=(sd(TotP_HEratio, na.rm=TRUE)/sqrt(length(TotP_HEratio))),
+            min=min(TotP_HEratio, na.rm=TRUE),
+            max=max(TotP_HEratio, na.rm=TRUE)
+            )
+Pratio_dayavg
+```
+
+Average daily int P load calculated.
+
+b) calculating average annual values during the CyanoHAB season...
+
+```{r}
+### calculating average annual internal P load ###
+IntP_yr<- Pint_all %>%
+  filter(daynum>=196 & daynum<=252) %>%
+  group_by(Yr) %>%
+  summarize(sum=sum(Int_TotP_kgday)) #add total P load
+IntP_yr
+IntP_yravg<- IntP_yr %>%
+  summarize(mean=mean(sum, na.rm=TRUE), #print the average annual
+            se=sd(sum, na.rm=TRUE)/sqrt(length(sum)),
+            min=min(sum, na.rm=TRUE),
+            max=max(sum, na.rm=TRUE)) #print sd for avg
+IntP_yravg #the estimated annual average P_ext with the P_other
+
+### calculating average P_hypo:epi for each year ###
+Pratio_dayavg<- Pint_all %>%
+  filter(daynum>=196 & daynum<=252) %>%
+  group_by(Yr) %>%
+  summarize(mean=mean(TotP_HEratio, na.rm=TRUE), #calculate mean
+            se=(sd(TotP_HEratio, na.rm=TRUE)/sqrt(length(TotP_HEratio))),
+            min=min(TotP_HEratio, na.rm=TRUE),
+            max=max(TotP_HEratio, na.rm=TRUE)
+            )
+Pratio_dayavg
+```
+
+Average annual int P load calculated.
+
+c) calculating the average daily values by source (unst vs strat)...
+
+```{r}
+IntP_dayavg_source<- Pint_all %>%
+  filter(daynum>=196 & daynum<=252) %>%
+  summarize(mean_unstr=mean(Unstr_TotP_kgday, na.rm=TRUE), #calculate mean
+            se_unstr=(sd(Unstr_TotP_kgday, na.rm=TRUE)/sqrt(length(Unstr_TotP_kgday))),
+            min_unstr=min(Unstr_TotP_kgday, na.rm=TRUE),
+            max_unstr=max(Unstr_TotP_kgday, na.rm=TRUE),
+            mean_strat=mean(Strat_TotP_kgday, na.rm=TRUE), #calculate mean
+            se_strat=(sd(Strat_TotP_kgday, na.rm=TRUE)/sqrt(length(Strat_TotP_kgday))),
+            min_strat=min(Strat_TotP_kgday, na.rm=TRUE),
+            max_strat=max(Strat_TotP_kgday, na.rm=TRUE)
+            )
+IntP_dayavg_source
+```
+
+Average daily P_int summarized.

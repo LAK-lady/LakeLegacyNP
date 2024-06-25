@@ -1,0 +1,367 @@
+---
+title: "TotalP_water.Rmd"
+author: "Lauren A. Knose, ORISE-EPA"
+date: '2024-05-20'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to process measurements taken in the surface 
+water (epilimnion) and bottom water (hypolimnion) of the lake. 
+
+
+# Step 1. load dependent packages and data needed:
+
+a) Loading the dependent packages...
+
+```{r}
+library(dplyr) #needed for transforming data
+library(ggplot2) #needed for plotting
+library(rLakeAnalyzer) #needed to find thermocline depth from temperature profile
+library(reshape2) #needed to reshape data frame from wide to long or long to wide
+library(zoo) #needed to linearly interpolate missing values
+library(tidyverse) #needed for crossing function
+```
+
+Packages loaded.
+
+b) Loading the data with total P concentrations, water temperature, and external P loads...
+
+```{r}
+### load data with total P concentration measurements ###
+water_P<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) #has nutrient data measured in lake
+
+### load data with water temperature measurements ###
+watertemp<-read.csv(file="Original_data/ntl29_v12_temp.csv") #data from temp string
+```
+
+# Step 2. Reformat and filter data:
+
+a) reformatting and filtering water P data...
+
+```{r}
+### reformat water P data ###
+water_P2<- water_P %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #format as Date
+  rename(Yr=year4, #rename year field
+         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
+         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
+         Depth_m = depth)  #rename depth field with units (meters)
+
+### filter data to study site and study period ###
+water_P2<- water_P2 %>%
+  filter(lakeid=="ME", #filter for Lake Mendota
+         rep=="1") %>% #remove analytical reps
+  filter(Yr>=2013 & Yr <=2018) %>%  #filter for the study years 
+  select(sampledate, TotP_mgL, DisP_mgL, Depth_m, daynum, Yr) #%>%
+#  filter(!is.na(TotP_mgL)) #remove records with NAs
+```
+
+Water column P data formatted and filtered.
+
+b) reformatting and filtering water temperature data...
+
+```{r}
+### reformat water temperature data ###
+watertemp2<- watertemp %>% #make new data frame
+  mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y",#specify format of date
+                            origin="1899-12-30"),
+         daynum=as.integer(format(sampledate, format="%j"))) %>% #add in day number
+  rename(Yr=year4, #rename year field
+         Depth_m=depth, #rename column with units
+         watertemp_C=wtemp) #rename column with units 
+### filter water temperature data ###
+watertemp2<- watertemp2 %>%
+  filter(lakeid=="ME") %>% #filter for Lake Mendota data only
+  filter(rep==1) %>% #filter for rep 1 (no analytical reps)
+  filter(Yr>=2013 & Yr <=2018) %>% #filter for the study years 
+  select(sampledate, Depth_m, watertemp_C, daynum, Yr) #%>% #select vars needed
+#  filter(!is.na(watertemp_C)) #remove NAs
+```
+
+Water temperature data reformatted and filtered.
+
+# Step 3. View and summarize data:
+
+a) plotting P concentrations across depth and time...
+
+```{r}
+### plot P concentration across both depth and time ###
+SI_fig13<- ggplot(data=subset(water_P2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sampled date as x-axis
+           y=Depth_m, 
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point() + #plot points
+  facet_wrap(~Yr) + #make separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = high values
+                        low=scales::muted("blue"), #blue = low values
+                        name="Total P (mg/L)") + #name of legend
+  geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)") 
+SI_fig13
+ggsave(SI_fig13, file="Products/SI_figures/Figure13_color.png")
+```
+
+Total P concentrations plotted across depth and date.
+
+b) plotting water temperature across depth and date...
+
+```{r}
+### plot water temp across depth (y-axis) and date (x-axis) ###
+SI_fig15<- ggplot(data=subset(watertemp2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sampled date as x-axis
+           y=Depth_m, 
+           color=watertemp_C)) + #and data points colored by temperature
+  geom_point() + #plot points
+  facet_wrap(~Yr) + #make separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = hot temp
+                        low=scales::muted("blue"), #blue = cold temp
+                        name="Water Temperature (C)") + #name of legend
+  geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)") 
+SI_fig15
+ggsave(SI_fig15, file="Products/SI_figures/Figure15_color.png")
+```
+
+Water temperature plotted across depth and date.
+
+# Step 4. Calculate P_hypo:epi:
+
+a) calculating average P concentration by layer...
+
+```{r}
+### define the lower boundary of the epilimnion and highest boundary of the hypolimnion from temperature profiles ###
+epi_max_m<- 8
+hypo_min_m<- 20
+
+### filter P data to epilimnion ###
+Epi_P<- water_P2 %>%
+  filter(Depth_m <= epi_max_m) %>% #for observations taken at or above 8 m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE),#calculates mean for epi 
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>%
+  mutate(layer="epilimnion") #adds field with layer name
+
+### filter P data to hypolimnion ###
+Hypo_P<- water_P2 %>%
+  filter(Depth_m >= hypo_min_m) %>% #for observations taken at or below 20m
+  group_by(sampledate) %>% #group all observations in same sample date
+  summarize(TotP_mgL=mean(TotP_mgL, na.rm=TRUE), #calculates mean for hypo
+            DisP_mgL=mean(DisP_mgL, na.rm=TRUE)) %>%
+  mutate(layer="hypolimnion") #adds field with layer name
+```
+
+Mean P concentrations calculated by layer. 
+
+b) merging and viewing the data...
+
+```{r}
+### reshape and reformat data ###
+P_ratio_long<- rbind(Epi_P, Hypo_P) %>%
+  mutate(Yr=as.integer(format(sampledate, format="%Y")), #add year
+         daynum=as.integer(format(sampledate, format="%j"))) #add day number
+
+### plot data ###
+SI_fig16<- ggplot(data=subset(P_ratio_long, daynum>= 189 & daynum <=259), aes(x=daynum, color=layer))+ #filter for CyanoHAB season +- 7 days),  #plot thermocline depth across date
+   geom_line(aes(y=TotP_mgL), lty="solid") + #
+   geom_point(aes(y=TotP_mgL), shape=1) + #add lines between points
+   geom_line(aes(y=DisP_mgL), lty="dashed") + #
+   geom_point(aes(y=DisP_mgL), shape=2) + #add lines between points
+   facet_wrap(~Yr) + #plot individual years
+   geom_hline(yintercept=0.03, lty="dashed") +
+   scale_linetype_manual(values=c("TotP_mgL"=1, "DisP_mgL"=2)) +
+   scale_color_manual(values=c("blue","darkred")) +
+  scale_shape_manual(name="P form", labels=c("Total P", "Dissolved P")) +
+   theme_classic() +
+   labs(x="Date", y="P concentration (mg/L)", color="Layer")#add axis labels
+SI_fig16
+ggsave(SI_fig16, file="Products/SI_figures/Figure16_color.png")
+```
+
+Data plotted.
+
+c) calculating P_hypo:epi...
+
+```{r}
+### remove unwanted fields ###
+P_ratio_long<- P_ratio_long %>%
+  select(!c(DisP_mgL)) #remove unwanted fields
+
+### reshape data frame from long to wide ###
+P_ratio<- dcast(P_ratio_long, sampledate+Yr+daynum ~ layer, value.var = "TotP_mgL")
+
+### calculate P_hypo:epi ###
+P_ratio<- P_ratio %>%
+  rename(epi_totP_mgL=epilimnion, #rename fields with untis
+         hypo_totP_mgL=hypolimnion) %>% #rename fields with units
+  mutate(TotP_HEratio=ifelse((hypo_totP_mgL/epi_totP_mgL)!=Inf, 
+                             (hypo_totP_mgL/epi_totP_mgL), ""))
+
+### fill missing P_hypo:epi with nearest value ###
+P_ratio<- P_ratio %>% 
+  group_by(Yr) %>% 
+  mutate(TotP_HEratio=na.approx(TotP_HEratio, na.rm=FALSE, rule=2)) %>%
+  ungroup()
+```
+
+P_hypo:epi calculated.
+
+# Step 5. Interpolate missing P values across depth:
+
+a) interpolating missing P concentrations across depth...
+
+```{r}
+### create a function to interpolate across depth for each sample date ###
+estimate_TotP_by_date <- function(target_date, target_depth) { #write function that
+  data_for_date <- water_P2 %>% #creates a new data frame for a single date
+    filter(sampledate == target_date) %>% #filters for specific date
+    arrange(Depth_m) #and arranges depths min to max
+  approx(data_for_date$Depth_m, #linear regression interpolation of
+         data_for_date$TotP_mgL, #y values
+         xout = target_depth)$y #from depth min to max
+}
+
+### filter out any observations that have < 2 values (>2 values needed for interpolation) ###
+water_interp<- water_P2 %>%
+  filter(daynum>= 100 & daynum <=259) %>% #filter for CyanoHAB season  +- 7 days
+  group_by(sampledate) %>% #for each sampledate
+  filter(!n()<2) %>% #remove dates with less than 2 observations
+  ungroup() #ungroup table
+
+### interpolate P concentrations across depth within each sample date ###
+TotP_interp_depth <- crossing( #creates a tibble that 
+  tibble(date = unique(water_interp$sampledate)), #has same dates as those in frame
+  # depths can now be any value
+  tibble(Depth_m = seq(0, 25, #define depth min and max
+                       length.out = 26)) #set the number of interpolated values
+) %>%
+  group_by(date) %>%
+  mutate(TotP_mgL = estimate_TotP_by_date(date[1], Depth_m),
+         daynum=as.integer(format(date, format="%j"))) %>%
+  ungroup()
+
+### save as data frame ###
+TotP_interp_depth<- as.data.frame(TotP_interp_depth)
+```
+
+Total P interpolated across depth
+
+b) plotting interpolated P across depth..
+
+```{r}
+### plot interpolated water P data ###
+SI_fig14<- ggplot(data=subset(TotP_interp_depth, daynum>=196 & daynum<=252), #create limno plot with depth inverse on y-axis
+       aes(x=as.integer(format(date, "%j")), #sample date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=TotP_mgL)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(format(date, "%Y"))) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Total P (ug/L)") + 
+  geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Date", y="Depth (m)")  #add axis labels
+SI_fig14 #print plot
+ggsave(SI_fig14, file="Products/SI_figures/Figure14_color.png") #save plot
+```
+
+P concentration interpolated across depth.
+
+# Step 6. Calculate the change in epilimnion volume:
+Note, data frame needs to be in wide format with each depth a separate column (add prefix= "wtr_") to match package function dependencies.
+
+a) calculating change in thermocline depth...
+
+```{r}
+### reformat data for input into rLakeAnalyzer ###
+wtr<- watertemp2 %>%
+  select(sampledate, Depth_m, watertemp_C) #only include needed columns
+wtr<- dcast(wtr, sampledate ~ Depth_m) # reshape depth from long to wide
+colnames(wtr)<- paste("wtr", colnames(wtr), sep="_") #add wtr_ before column name
+# fit package format dependencies
+wtr<- wtr %>%
+  rename(datetime=wtr_sampledate) #rename column to fit package format dependencies
+
+### determine the thermocline depth ###
+t.d<- ts.thermo.depth(wtr, na.rm=TRUE) #calculates thermocline depth as time series
+
+### plot the thermocline depth by date ###
+SI_fig17<- ggplot(data=t.d, aes(x=datetime, 
+                     y=thermo.depth))+ #plot thermocline depth across date
+  geom_point(shape=1) + #points as open circles
+  geom_line() + #add lines between points
+  scale_y_reverse() + #reverse the y scale for limno plot
+  theme_classic() +
+  labs(x="Date", y="Thermocline depth (m)")#add axis labels
+SI_fig17
+ggsave(SI_fig17, file="Products/SI_figures/Figure17.png")
+
+### seperate data by year then assign thermocline depth for each observation (t) ###
+t.d2<- t.d %>% #make new table
+  mutate(Yr=as.numeric(format(datetime, "%Y"))) %>% #add in year
+  group_by(Yr) %>% #for each year of day
+  rename(Thermo_depth_m=thermo.depth) %>% #add units and remove duplicate column
+  mutate(Thermo_depth_m_k1=lag(Thermo_depth_m, n=1)) %>% #thermocline depth at t-1 
+  ungroup()
+
+### reassign first thermocline depth at t-1 each year (Nas) as thermocline depth at t ###
+t.d2$Thermo_depth_m_k1[is.na(t.d2$Thermo_depth_m_k1)] <- t.d2$Thermo_depth_m[is.na(t.d2$Thermo_depth_m_k1)]#replace NAs in t-1 with the t value
+
+### calculate change in thermocline depth ###
+t.d2<- data.frame(t.d2) %>%
+  mutate(Chg_Thermodepth_m= Thermo_depth_m-Thermo_depth_m_k1)
+```
+
+Thermocline depth calculated. 
+
+b) calculating volume lost or gained to epi...
+
+```{r}
+### calculate the change in thermocline depth between t and t-1 to get the volume ###
+A_strat= 25850000 # surface area of stratified region in m^2 
+Vol_epi<- t.d2 %>%
+  rename(sampledate=datetime) %>%
+  mutate(Volchg_epi_m3 = Chg_Thermodepth_m*A_strat,#calculate daily change in volume
+         daynum=as.numeric(format(sampledate, "%j"))) #add daynum
+```
+
+Thermocline and change in epi volume calculated.
+
+# Step 7. Calculate P added (removed) from change in epi volume:
+
+a) merging P concentrations with epi volume change...
+```{r}
+### add key fields to data frame A to match with data frame B ###
+Vol_epi2<- Vol_epi %>%
+  group_by(Yr) %>%
+  mutate(sampledate_k=lag(sampledate, n=1),
+         Depth_m_k=as.integer(round(Thermo_depth_m_k1, 0))) %>%
+  ungroup() 
+
+### add field with matching P value from data frame B ###
+Vol_chg<- merge(Vol_epi2, TotP_interp_depth, 
+                by.x=c("sampledate_k", "Depth_m_k"), 
+                by.y=c("date", "Depth_m"),
+                all.x=TRUE)
+```
+
+Data merged.
+
+# Step 9: Save the new data files:
+
+```{r}
+### save the P concentration and epi volume change ###
+write.csv(Vol_chg, file="Cleaned_data/TotalP_water.csv")
+
+### save the P_hypo:epi ###
+write.csv(P_ratio, file="Cleaned_data/TotalP_ratio.csv")
+```
+
+Data saved.
