@@ -1,21 +1,8 @@
 # Overview
-The purpose of this repository is to provide the code and data used to quantify the impact of the internal load (legacy P load from lake sediments) on cyanHAB severity in a lake and map areas upstream of the lake with potential legacy P stores. The framework includes an impact model method and a spatial model method described below. 
-
-The code and data contained herein are provided as supplemental information (SI) associated with the following article: 
-
-Title: The impact of legacy nutrient loading from lake sediments on cyanobacteria bloom severity. 
-Author names and affiliations: Lauren A. Knose1, David L. Cole2, Edgar Martín-Hernández3,4, Gerardo J. Ruiz-Mercado5,6*, Victor M. Zavala2, Michael A. Gonzalez5, Céline Vaneeckhaute4
-1Research Participation Program, Oak Ridge Institute for Science and Education, Cincinnati, Ohio, United States
-2Department of Chemical Engineering, University of Wisconsin, Madison, Wisconsin, United States
-3Department of Mining and Materials Engineering, McGill University, Quebec, Canada
-4Department of Chemical Engineering, Université Laval, Québec City, Canada 
-5Office of Research and Development, U.S. Environmental Protection Agency, Cincinnati, OH, United States 
-6Chemical Engineering Graduate Program, Universidad del Atlántico, Puerto Colombia 080007, Colombia
-
-Corresponding author: *Dr. Gerardo J. Ruiz-Mercado, 26 Martin Luther King Drive West, Cincinnati, OH 45220, ruiz-mercado.gerardo@epa.gov 
+This branch serves as the repository for the Harsha Lake (Ohio, United States) case study. 
 
 # Authorship
-This repository was generated and maintained by Lauren Knose, PhD through an ORISE appointment with the U.S. EPA. Dr. Knose is the author of the impact model method. David Cole, PhD Student at the University of Wisconsin, is the author of the mapping model method. When using or referencing information from this repository, please use the citation above.
+This repository was generated and maintained by Lauren Knose, PhD through an ORISE appointment with the U.S. EPA. Dr. Knose is the author of the impact model method. 
 
 # Contents:
 There are two model frameworks contained in this repository. The first is the impact model method for quantifying external loads, internal loads, and source attributed impact on cyanoHAB severity. This method was written using R language (version 4.2.2). The second is the spatial model method for mapping potential legacy P stores in upstream sub-watersheds and estimates the total P load per contributing area across sub-watersheds. The spatial method was written using Python language (version 3.8.5) and GeoPandas (version 0.8.2). The master (main) branch uses data from Lake Mendota, WI (USA) as the case study. Additional branches are named based on alternative case studies.
