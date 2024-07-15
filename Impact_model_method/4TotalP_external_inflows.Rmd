@@ -37,18 +37,55 @@ Packages loaded.
 b) Loading the data needed...
 
 ```{r}
-### load data for stream A ###
-PB_P_flow<- read.csv(file="Cleaned_data/PheasantBranch_P.csv")
+### load the data for all streams ### 
+SWAT_loads<- read.csv(file="Original_data/HarshaLake_SWAT_loads_2000to2018.csv")
+SWAT_loads<- SWAT_loads %>%
+  mutate(sampledate=as.Date(Date, origin="1899-12-30", format="%m/%d/%Y"), #format date field
+         Yr= as.integer(format(sampledate, "%Y")), #add year field
+         daynum=as.integer(format(sampledate, "%j"))) 
+```
 
-### load data for stream B ###
-SMC_P_flow<- read.csv(file="Cleaned_data/SixMileCreek_P.csv")
+c) assigning data to each basin...
 
-### load data for stream C ###
-YR_P_flow<- read.csv(file="Cleaned_data/YaharaRiver_P.csv")
+```{r}
+### load data for site A ###
+ECP_inflow<- SWAT_loads %>%
+  select(sampledate, Yr, daynum, TOTP_kg_PoplarCreek, TOTP_kg_CloverCreek,TOTN_kg_PoplarCreek, TOTN_kg_CloverCreek)
+
+### load data for site B ###
+ENN_inflow<- SWAT_loads %>%
+  select(sampledate, Yr, daynum, TOTP_kg_ELI, TOTP_kg_CabinRun, TOTP_kg_KainRun,TOTN_kg_ElI, TOTN_kg_CabinRun, TOTN_kg_KainRun)
+
+### load data for site C ###
+BUO_inflow<- SWAT_loads %>%
+  select(sampledate, Yr, daynum, TOTP_kg_SlabCamp, TOTN_kg_SlabCamp)
+
+### load data for site D ###
+EOF_inflow<- SWAT_loads %>%
+  select(sampledate, Yr, daynum, TOTP_kg_BackCreek, TOTP_kg_UlreyCreek, TOTN_kg_BackCreek, TOTN_kg_UlreyCreek)
+
+### load data for site E ###
+EMB_inflow<- SWAT_loads %>%
+  select(sampledate, Yr, daynum, TOTP_kg_SouthHarsh, TOTN_kg_SouthHarsh)
 ```
 
 Total P data loaded.
 
+############################
+
+summarising by site...
+
+```{r}
+ECP_inflow_season<- ECP_inflow %>%
+  filter(daynum>=152 & daynum<=258) %>%
+  group_by(Yr) %>%
+  summarise(TotP_kg=sum(TOTP_kg_CloverCreek, TOTP))
+ECP_inflow_season
+
+```
+
+
+###########################
 # Step 2. Reformat and transform the data:
 
 ```{r}
