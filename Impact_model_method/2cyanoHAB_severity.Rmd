@@ -28,10 +28,10 @@ b) loading the data...
 
 ```{r}
 ### load phytoplankton cell count data ###
-phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+phyto<-read.csv(file="Cleaned_data/HarshaLake_cyanos.csv", header=TRUE) #has the phytoplankton community dataset
 
 ### load chlorophyll-a data ###
-Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
+Chl<- read.csv(file="Original_data/HarshaLake_Chla.csv", header=TRUE) #has chl data
 ```
 
 Data loaded. 
@@ -41,46 +41,54 @@ Data loaded.
 a) reformatting and filtering the data...
 
 ```{r}
-### reformatting and filtering phyto data ###
-Me_cyano<- phyto %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
-         Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>%  #adds field with day
-  rename(CD_cellsmL=cells_per_ml)%>% #renames field 
-  filter(lakeid=="ME", #filter for Lake Mendota data
-         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
-         division=="Cyanophyta", #filter for cyanobacteria
-         Yr>=2013 & Yr<=2018) %>% #filter for study period
-  select(sampledate, CD_cellsmL)
-
-### reformatting and filtering chl-a data ###
-Me_Chl<- Chl %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
-         Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>% #renames field to common name
-  rename(Chla_ugL= tri_chl_spec) %>% #renames field to common name with units)
-  filter(lakeid=="ME", #filter for Lake Mendota data
-         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
-         rep=="1",#remove QA analytic replicates
-         Yr>=2013 & Yr<=2018, #filter for study period
-         Yr!=2017) %>% #filter the error data out
-  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
+### reformatting and summarizing phyto data ###
+cyanos<- phyto %>%
+  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Date
+  group_by(SiteID, sampledate) %>%
+  summarize(avgCD_cellsmL=mean(CD_cellsmL, na.rm=TRUE),
+            avgcyano_relbiovol=mean(cyano_relbiovol, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
+         daynum=as.numeric(format(sampledate, "%j")))
 ```
 
-Data reformatted and filtered.
+CD reformatted and filtered.
 
-b) calculating cyano cell density (CD)...
+b) reformatting and filtering chl-a data...
 
 ```{r}
-Me_cyano<- Me_cyano %>%  
-  group_by(sampledate) %>% #group all observations by sample date
-  summarize(CD_cellsmL=sum(CD_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+### identify labels used for fields ###
+colnames(Chl)
+unique(Chl$id)
+sort(unique(Chl$depth_ft))
+unique(Chl$Analyte)
+
+### add conversion factors ###
+ft_m<- 0.3048# conversion factor from feet to m
+
+### reformatting and filtering chl-a data ###
+chla<- Chl %>%
+  filter(id=="EOF"|id=="BUO"|id=="EMB"|id=="ENN"|id=="ECP") %>%
+  mutate(sampledate=as.Date(Date, origin="1899-12-30", format="%m/%d/%Y")) %>% #tells R to format field as Date
+  rename(Chla_ugL= Value,
+         SiteID=id) %>% #renames field to common name with units)
+  mutate(Depth_m=depth_ft*ft_m) %>% # convert depth from feet to meters
+  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
+  select(SiteID, sampledate, Chla_ugL, Depth_m) %>% #selects only fields of interest
+  filter(Chla_ugL>=0 & Chla_ugL<=1000) #realistic parameters
+
+### calculate average Chla for epi ###
+hist(chla$Depth_m)
+HL_chla<- chla %>%
+  group_by(SiteID, sampledate) %>%
+  filter(Depth_m<=5) %>% #filter for epilimnion
+  summarise(avgChla_ugL=mean(Chla_ugL, na.rm=TRUE)) %>%
+  ungroup() %>%
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j")))  #adds field with day
+         daynum=as.numeric(format(sampledate, "%j")))   #renames field to)
 ```
 
-CD calculated.
+Chla reformatted and filtered.
 
 # Step 3. View the data available:
 
@@ -88,14 +96,13 @@ a) plotting Chl-a data available...
 
 ```{r}
 ### filter data to cyanoHAB season ###
-fig3a_data<- Me_Chl %>%
-  filter(daynum>= 189 & daynum<= 259) #day num +- 7 days
+fig3a_data<- HL_chla %>%
+  filter(daynum>=152 & daynum<=258)
 
 ### plot cyanoHAB severity as chl-a over time ###
-SI_fig3a<- ggplot(data=fig3a_data, aes(x=daynum, y=Chla_ugL)) + #plots Chl-a across date
+SI_fig3a<- ggplot(data=fig3a_data, aes(x=daynum, y=avgChla_ugL, color=Yr)) + #plots Chl-a across date
   geom_point() + #adds points at observations
-  geom_line() + #adds lines between 
-  facet_wrap(~Yr) +
+  facet_wrap(~SiteID) +
   theme_classic(base_size=12) +
   labs(x="Day of Year", y="Total Chl-a (ug/L)", title="a)") +
   annotate('rect', xmin=min(fig3a_data$daynum), xmax=max(fig3a_data$daynum),
@@ -113,22 +120,22 @@ b) Plotting CD data available...
 
 ```{r}
 ### filter data to cyanoHAB season ###
-fig3b_data<- Me_cyano %>%
-  filter(daynum>= 189 & daynum<= 259) #day num +- 7 days
+fig3b_data<- cyanos %>%
+  filter(daynum>=152 & daynum<=258) #day num +- 7 days
 
 ### plot cyanoHAB severity as CD over time ###
-SI_fig3b<- ggplot(data=fig3b_data, aes(x=daynum, y=CD_cellsmL))+
+SI_fig3b<- ggplot(data=fig3b_data, aes(x=daynum, y=avgCD_cellsmL, color=Yr))+
   geom_point() +  #point plot 
-  geom_line() + #lines between points
-  facet_wrap(~Yr) + #by year
+  facet_wrap(~SiteID) + #by year
   theme_classic(base_size=12)+
+  scale_y_continuous(trans="log10") +
   annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
            ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
   annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
            ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
   annotate('rect', xmin=min(fig3b_data$daynum), xmax=max(fig3b_data$daynum),
            ymin=100000, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
-  labs(x="Day of Year", y="Cyanobacteria Density (cells/mL)", title="b)")
+  labs(x="Day of Year", y="log10(Cyanobacteria Density) (cells/mL)", title="b)")
 SI_fig3b #print image
 ```
 
@@ -146,10 +153,62 @@ Chla and CD data plotted.
 d) merging the data files...
 ```{r}
 ### merge data files ###
-Chla_CD<- merge(Me_Chl, Me_cyano, by=c("sampledate", "Yr", "daynum"), all=TRUE) 
+Chla_CD<- merge(HL_chla, cyanos, by.x=c("SiteID", "sampledate", "Yr", "daynum"), by.y=c("SiteID", "sampledate", "Yr", "daynum"), all=TRUE) 
 ```
 
 Data files merged.
+
+
+
+####################################
+Does Chl-a and CD correlate?
+
+```{r}
+### plotting distributions ###
+par(mfrow=c(2,2))
+hist(Chla_CD$avgChla_ugL, breaks=18,#histograph of Chl-a
+     main="non-transformed",
+     xlab="Chl-a (ug/L)") 
+hist(Chla_CD$avgCD_cellsmL, breaks=18,#histograph of CD
+     main="non-transformed",
+     xlab="CD (cells/mL)") 
+hist(log10(Chla_CD$avgChla_ugL), breaks=18,#histograph of Chl-a
+     main="log10-transformed",
+     xlab="Chl-a (ug/L)") 
+hist(log10(Chla_CD$avgCD_cellsmL), breaks=18,#histograph of CD
+     main="log-10-transformed",
+     xlab="CD (cells/mL)") 
+par(mfrow=c(1,1))
+
+#### plot regression ###
+Chla_CD_plot<- ggplot(Chla_CD, aes(x=log10(avgCD_cellsmL), y=log10(avgChla_ugL))) +
+  geom_point() +
+#  facet_wrap(~SiteID) +
+  theme_classic() +
+  geom_smooth() +
+  labs(x="log10(avg CD) (cells/mL)", y="log10(Chl-a) ug/L)")
+Chla_CD_plot
+regChlaCD<- lm(data=Chla_CD,
+               formula=log10(avgCD_cellsmL)~log10(avgChla_ugL))
+summary(regChlaCD)
+```
+
+Do blooms occur at same time?
+
+```{r}
+blooms<- ggplot(subset(Chla_CD, Yr>=2010), aes(x=daynum, y=avgChla_ugL))+
+  geom_point() +
+  geom_line() +
+  theme_classic() +
+  facet_wrap(~SiteID) +
+  geom_vline(xintercept=200, lty="dashed", col="red") +
+  scale_y_continuous(trans="log10") +
+  labs(x="Day of Year (Year >= 2010)", y="log10(mean CD) (cells/mL)")
+blooms
+```
+
+###################
+
 
 # Step 4. Bin observations into expected frequencies:
 
@@ -159,7 +218,7 @@ a) defining expected observation frequencies...
 ### define the number of observation years ###
 Yr<- seq(from=2013, #define year start of study period
              to=2018, #define year end of study period
-             by=1) #creates a sequence every 1 year
+             by=7) #creates a sequence every 1 year
 Yr #prints the expected years of data
 
 ### define the observation frequency ###
