@@ -25,10 +25,10 @@ b) loading the data...
 
 ```{r}
 ### load the Secchi disk depth data ###
-Secchi<- read.csv(file="Original_data/ntl31_v9_secchi.csv")
+Secchi<- read.csv(file="Original_data/HarshaLake_secchi.csv")
 
 ### load the phytoplankton cell count data ###
-phyto<-read.csv(file="Original_data/ntl88_v13_phytoplankton.csv", header=TRUE)
+phyto<-read.csv(file="Original_data/HarshaLake_phytoplankton.csv")
 ```
 
 Data loaded.
@@ -38,15 +38,33 @@ Data loaded.
 a) reformatting and filtering data for cyanobacteria relative biovolume (CRB) and cyanobacteria density (CD)...
 
 ```{r}
-Me_cyanoRB<- phyto %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
-  filter(lakeid=="ME", #filter for Lake Mendota data
-         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
-         division=="Cyanophyta") %>% #filter for cyanobacteria data
-  group_by(sampledate) %>% #group all observations by sample date
-  summarize(cyano_relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
-            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  filter(cyano_relbiovol<=100) #remove any invalid records (>100%  not valid entry)
+### identify the labels used for fields ###
+colnames(phyto) #identify labels for fields to filter
+unique(phyto$SiteID) #determine the label for the site
+unique(phyto$Division) #determine the label for cyanobacteria
+head(phyto$Collection_Date) #determine format for sample date
+unique(phyto$Depth_ft) #determine the depth most data was collected
+
+### identify the target sites ###
+sites<- c("EOF", "BUO", "EMB", "ENN", "ECP")
+
+### filter the data###
+HL_cyanos<- phyto %>%
+  mutate(sampledate=as.Date(Collection_Date, origin="1899-12-30",
+                            format="%m/%d/%Y")) %>% #tells R to format field as Datey
+  filter(Division=="Cyanophyta" | Division==" Cyanobacteria " | Division=="Cyanobacteria") %>% #filter for cyanobacteria data
+  filter(SiteID=="EOF"|SiteID=="BUO"|SiteID=="EMB"|SiteID=="ENN"|SiteID=="ECP")
+
+### calculate cyano rel biovolume and cell density per sample ###
+cyanos<- HL_cyanos %>%
+  group_by(SiteID, sampledate, Depth_ft) %>% #group all observations by sample date
+  summarize(cyano_relbiovol=sum(SampleSpecific_BiovolumeRelativeAbundance_percent), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecific_CellDensity_cellspermL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  ungroup() %>%
+  filter(cyano_relbiovol<=100.1)
+
+### save as new data file in Cleaned data folder ###
+write.csv(cyanos, file="Cleaned_data/HarshaLake_cyanos.csv")
 ```
 
 Cyanobacteria data defined and filtered.
@@ -54,11 +72,26 @@ Cyanobacteria data defined and filtered.
 b) defining and filtering the Secchi depth data...
 
 ```{r}
-Me_Secchi<- Secchi %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"),#tells R to format field as Date
-         SD_m=secnview) %>% #adds units to field
-  filter(lakeid=="ME") %>% #filter for Lake Mendota data
-  select(sampledate, SD_m) #select the fields needed
+### identify the labels used for fields ###
+colnames(Secchi) #identify labels for fields to filter
+unique(Secchi$id) #determine the label for the site
+head(Secchi$Date) #determine format for sample date
+
+### filter and reformat data ###
+in_m <- 0.0254 #conversion factor from inch to meter
+HL_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(Date, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30"),#tells R to format field as Date
+         SD_m=Value*in_m) %>% #adds units to field
+  filter(Value!="") %>% # remove empty records
+  select(id, sampledate, SD_m)  #select the fields needed
+
+### average the SD by site and sample date ###
+Secchi2<- HL_Secchi %>%
+  group_by(id, sampledate) %>% #group data by sample date
+  summarize(SD_m=mean(SD_m, na.rm = TRUE)) %>% #average the Secchi depth 
+  ungroup()
 ```
 
 Secchi depth data defined and filtered.
@@ -66,8 +99,8 @@ Secchi depth data defined and filtered.
 c) merging the data...
 ```{r}
 ### merging the two data files ###
-fig2_data<- merge(Me_cyanoRB, Me_Secchi, by=c("sampledate"),
-                       all=TRUE)  #merges data frames and keeps all records 
+fig2_data<- merge(cyanos, Secchi2, by.x=c("sampledate", "SiteID"),
+                  by.y=c("sampledate", "id"), all=TRUE)  #merges data frames and keeps all records 
 ### reformatting dates ###
 fig2_data<- fig2_data %>%
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
@@ -85,25 +118,32 @@ a)  plotting Secchi depth and cyanobacteria relative biovolume to get cyanoHAB s
 a<- ggplot(data=fig2_data, aes(x=daynum, y=SD_m)) + #plots SD across day
   geom_point() + #plots observations as points
   theme_classic(base_size=12) +
+  facet_wrap(~SiteID) +
   geom_smooth() + #adds regression curve
   labs(x="Day of year", y="Secchi depth (m)") +
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+a
 
 ### plot cyanobacteria relative biovolume by day of year ###
 b <- ggplot(data=fig2_data, aes(x=daynum, y=cyano_relbiovol)) + #plots cyano RB across day
   geom_point() + #plots observations as points
   theme_classic(base_size=12) +
+  facet_wrap(~SiteID) +
   geom_smooth() + #adds regression curve
   labs(x="Day of year", 
        y="Cyanobacteria relative biovolume 
        (as % total phytoplankton biovolume)") +
+  geom_hline(yintercept=50, lty="dashed")+
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=258, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+b
+
+### plote them together ###
 fig2<- ggarrange(a, b, nrow=2, ncol=1) #plot figures together
 fig2 #print figure
 ggsave(fig2, file="Products/Figure2_color.png") #saves plot to Products folder
