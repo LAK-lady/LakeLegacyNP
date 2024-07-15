@@ -30,7 +30,7 @@ b) Loading the data with total P concentrations, water temperature, and external
 
 ```{r}
 ### load data with total P concentration measurements ###
-water_P<- read.csv(file="Original_data/ntl1_v9_1_chem.csv", header=TRUE) #has nutrient data measured in lake
+water_P<- read.csv(file="Original_data/HarshaLake_chem.csv", header=TRUE) #has nutrient data measured in lake
 
 ### load data with water temperature measurements ###
 watertemp<-read.csv(file="Original_data/ntl29_v12_temp.csv") #data from temp string
@@ -41,13 +41,19 @@ watertemp<-read.csv(file="Original_data/ntl29_v12_temp.csv") #data from temp str
 a) reformatting and filtering water P data...
 
 ```{r}
+### add conversion factors ###
+ugL_mgL<- 1/1000
+ft_m<- 0.3048# conversion factor from feet to m
+
 ### reformat water P data ###
 water_P2<- water_P %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #format as Date
-  rename(Yr=year4, #rename year field
-         TotP_mgL=totpuf_sloh, #rename total P field with units (mg/L)
-         DisP_mgL=drp_sloh, #rename dissolved P field with units (mg/L)
-         Depth_m = depth)  #rename depth field with units (meters)
+  mutate(sampledate=as.Date(Date, origin="1899-12-30", format="%m/%d/%Y")) %>% #format as Date
+  filter(depth!=c("D","S","3_D","3_S")) %>%
+  mutate(TotP_mgL=TP*ugL_mgL, #rename total P field with units (mg/L)
+         TotN_mgL=as.numeric(TN),
+         Depth_m = as.numeric(depth)*ft_m) %>%  #rename depth field with units (meters)
+  rename(SiteID=id) %>%
+  select()
 
 ### filter data to study site and study period ###
 water_P2<- water_P2 %>%
