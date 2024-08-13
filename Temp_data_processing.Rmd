@@ -1,0 +1,144 @@
+---
+title: "Temp_data_processing.Rmd"
+author: "Lauren Knose"
+date: "2024-07-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this program is to reformat and combine the temperature data for Harhsa Lake.
+
+# Step 1. Load dependent data and programs:
+
+a) loading dependent programs...
+
+```{r}
+### install packages as needed ###
+#install.packages(c("dplyr", "ggplot2", "rLakeAnalyzer", "reshape2", "zoo", "tidyverse"))
+
+### load packages to environment ###
+library(dplyr) #needed for transforming data
+library(ggplot2) #needed for plotting
+library(rLakeAnalyzer) #needed to find thermocline depth from temperature profile
+library(reshape2) #needed to reshape data frame from wide to long or long to wide
+library(zoo) #needed to linearly interpolate missing values
+library(tidyverse) #needed for crossing function
+```
+
+Programs loaded.
+
+
+b) loading dependent data...
+
+```{r}
+tnode1<- read.csv(file="Original_data/tnode_16-19.csv")
+tsonde1<- read.csv(file="Original_data/Sondemaster_03092020.csv")
+```
+
+Data loaded.
+
+# Step 2. Reformat data: 
+
+a) identifying filter parameters...
+
+```{r}
+### print the column headers ###
+colnames(tnode1)
+
+### print the unique sites ###
+unique(tnode1$Site)
+
+### print the date range ###
+min(tnode1$Date)
+max(tnode1$Date)
+
+### print the units ###
+unique(tnode1$Parameter)
+unique(tnode1$Units)
+```
+
+Column headers identified.
+
+b) reformatting temperature data for file 1...
+
+```{r}
+### reformat water temperature data ###
+tnode1<- tnode1 %>% #make new data frame
+  mutate(sampledate=as.Date(Date, format="%Y-%m-%d",#specify format of date
+                            origin="1899-12-30"),
+         Yr=as.integer(format(sampledate, format="%Y")),
+         daynum=as.integer(format(sampledate, format="%j"))) #add in day number
+
+### remove unnecessary fields ###
+tnode1$Site=NULL
+tnode1$Parameter=NULL
+tnode1$Date=NULL
+tnode1$Units=NULL 
+tnode1$latitude=NULL
+tnode1$longitude=NULL
+
+### reshape water temp data to long format ###
+tnode1_long<- melt(tnode1, id.vars=c("sampledate", "Yr", "daynum", "Time"), value.name="watertemp_C", variable.name="depth_m")
+
+### clean up data fields ###
+tnode1_long<- tnode1_long %>%
+  mutate(depth_m=as.character(depth_m))
+tnode1_long$depth_m[tnode1_long$depth_m == "X0_m"] <- "0"
+tnode1_long$depth_m[tnode1_long$depth_m == "X2_m"] <- "2"
+tnode1_long$depth_m[tnode1_long$depth_m == "X4_m"] <- "4"
+tnode1_long$depth_m[tnode1_long$depth_m == "X6_m"] <- "6"
+tnode1_long$depth_m[tnode1_long$depth_m == "X8_m"] <- "8"
+tnode1_long$depth_m[tnode1_long$depth_m == "X10_m"] <- "10"
+tnode1_long$depth_m[tnode1_long$depth_m == "X12_m"] <- "12"
+tnode1_long$depth_m[tnode1_long$depth_m == "X14_m"] <- "14"
+tnode1_long$depth_m[tnode1_long$depth_m == "X16_m"] <- "16"
+tnode1_long$depth_m[tnode1_long$depth_m == "X18_m"] <- "18"
+tnode1_long<- tnode1_long %>%
+  mutate(depth_m=as.numeric(depth_m)) %>%
+  filter(!c(watertemp_C==""| watertemp_C<0))
+```
+
+Temp data reformatted.
+
+c) reformatting temperature node data for file 2...
+
+```{r}
+
+```
+
+Water temperature data reformatted and filtered.
+
+# Step 3. View and summarize data:
+
+b) plotting water temperature across depth and date...
+
+```{r}
+### plot water temp across depth (y-axis) and date (x-axis) for data file 1 ###
+tnode1_plot<- ggplot(data=tnode1_long, #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sampled date as x-axis
+           y=depth_m, 
+           color=watertemp_C)) + #and data points colored by temperature
+  geom_point() + #plot points
+  facet_wrap(~Yr) + #make separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
+  scale_color_gradient(high=scales::muted("red"), #red = hot temp
+                        low=scales::muted("blue"), #blue = cold temp
+                        name="Water Temperature (C)") + #name of legend
+  theme_classic() +
+  labs(x="Day of Year", y="Depth (m)", title="Source: Tnode_16-19.csv") 
+tnode1_plot
+ggsave(tnode1_plot, file="Products/SI_figures/tnode1_plot_color.png")
+
+### plot water temp across depth (y-axis) and date (x-axis) for data file 2 ###
+
+```
+
+Water temperature plotted across depth and date.
+
+b) summarizing water temperature data...
+
+```{r}
+summary(tnode2_long$watertemp_C)
+
+```
