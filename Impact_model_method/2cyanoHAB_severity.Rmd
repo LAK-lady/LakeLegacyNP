@@ -19,7 +19,6 @@ library(ggplot2) #needed for plots
 library(dplyr) #needed for reshaping/reformating data
 library(ggpubr) #needed for graphing multiple plots
 library(zoo) #needed for na aggregate
-library(plotly) #needed for 3D plots
 ```
 
 Packages loaded.
@@ -32,13 +31,15 @@ phyto<-read.csv(file="Cleaned_data/HarshaLake_cyanos.csv", header=TRUE) #has the
 
 ### load chlorophyll-a data ###
 Chl<- read.csv(file="Original_data/HarshaLake_Chla.csv", header=TRUE) #has chl data
+
+toxins<- read.csv(file="Original_data/ODOH_HarshaLake_toxinresults_2011to2024.csv", header=TRUE)
 ```
 
 Data loaded. 
 
 # Step 2. Calculate cyanobacteria cell density (CD):
 
-a) reformatting and filtering the data...
+a) reformatting and filtering the CD data...
 
 ```{r}
 ### reformatting and summarizing phyto data ###
@@ -89,6 +90,25 @@ HL_chla<- chla %>%
 ```
 
 Chla reformatted and filtered.
+
+c) reformatting and filtering the toxin data...
+
+```{r}
+### identify labels used for fields ###
+colnames(toxins)
+unique(toxins$Analyte) 
+unique(toxins$Units) #check units
+unique(toxins$Site)
+
+HL_tox<- toxins %>%
+  mutate(sampledate=as.Date(Sample_date, origin="1899-12-30",
+                            format="%m/%d/%Y")) %>% #tells R to format field as Date
+  filter(Analyte=="Microcystin") %>% #filter for toxin of interest
+  rename(Microcystin_ugL=Value, #rename field
+         SiteID=Site) %>% #renames field to common name with units)
+```
+
+Toxin data reformatted and filtered.
 
 # Step 3. View the data available:
 
@@ -370,96 +390,3 @@ Field with lagged values added.
 ### save the new Chla data file ###
 write.csv(cyanoHAB_approx, file="Cleaned_data/cyanoHAB_severity.csv")
 ```
-
-# Step 9: Make 3D graphs of response variables for entire year:
-
-a) 3D plot of Chl-a across day number and year...
-
-```{r}
-Me_Chl<- Chl %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30"), #tells R to format field as Date
-         Chla_ugL= tri_chl_spec, #renames field to common name with units
-         ) %>% 
-  filter(lakeid=="ME", #filter for Lake Mendota data
-         depth_range_m=="0-8", #filter for data from integrated samples 0 to 8m
-         rep=="1") %>% #remove QA analytic replicates
-  filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  select(sampledate, Chla_ugL) #selects only fields of interest
-
-date_range<- seq( #creates a vector of sequence data
-  min(Me_Chl$sampledate), #starting at the first sample date
-  max(Me_Chl$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Me_Chl$sampledate, #across date
-  Me_Chl$Chla_ugL, #the predicted values of Chl-a
-  xout=date_range) #for every 1 day
-Chla_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
-  Chla_ugL=interpolated$y) #renames the new vector as common field with units
-
-Chla_interp<- Chla_interp %>%
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
-         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
-         ) %>%
-  filter(Yr>=2013 & Yr<=2018) #filter for study period
-
-SI_fig4a<- plot_ly(x=Chla_interp$Yr, 
-  y=Chla_interp$daynum, 
-  z=Chla_interp$Chla_ugL, 
-  type="scatter3d", mode="markers",
-  color=Chla_interp$Chla_ugL) %>%
-  layout(scene=list(xaxis=list(title="Year"),
-         yaxis=list(title="Day of Year"),
-         zaxis=list(title="Chlorophyll-a (ug/L)")))
-SI_fig4a #prints the plot
-#save plot mannually
-```
-
-b) 3D plot of CD across day number and year...
-
-```{r}
-Me_cyanoRB<- phyto %>%
-  mutate(sampledate=as.Date(sampledate, origin="1899-12-30")) %>% #tells R to format field as Datey
-  filter(lakeid=="ME", #filter for Lake Mendota data
-         depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
-         division=="Cyanophyta") %>% #filter for cyanobacteria data
-  group_by(sampledate) %>% #group all observations by sample date
-  summarize(relbiovol=sum(relative_total_biovolume), #add all observations of cyanobacteria biovolumes together for each sample date
-            CD_cellsmL=sum(cells_per_ml)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  filter(relbiovol<=100) %>% #remove any invalid records (>100%  not valid entry)   
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j"))) %>% #adds field with day
-  filter(Yr>=2013 & Yr<=2018) #filter for study years
-
-date_range<- seq( #creates a vector of sequence data
-  min(Me_cyanoRB$sampledate), #starting at the first sample date
-  max(Me_cyanoRB$sampledate), #ending at the last sample date
-  by="1 day") #observations every day  
-interpolated<- approx( #creates a vector of data that linearly interpolates 
-  Me_cyanoRB$sampledate, #across date
-  Me_cyanoRB$CD_cellsmL, #the predicted values of Cyanos
-  xout=date_range) #for every 1 day
-CD_interp <- data.frame( #creates a new data frame that has 
-  sampledate = as.Date(interpolated$x), #renames the new vector as common field 
-  CD_cellsmL=interpolated$y) #renames the new vector as common field with units
-
-CD_interp<- CD_interp %>%
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #adds field with year
-         daynum=as.numeric(format(sampledate, "%j")) #adds field with day of yr
-         ) %>%
-  filter(Yr>=2013 & Yr<=2018) #filter for study period
-
-SI_fig4b<- plot_ly(x=CD_interp$Yr, 
-  y=CD_interp$daynum, 
-  z=CD_interp$CD_cellsmL, 
-  type="scatter3d", mode="markers",
-  color=CD_interp$CD_cellsmL)%>%
-  layout(scene=list(xaxis=list(title="Year"),
-         yaxis=list(title="Day of Year"),
-         zaxis=list(title="Cyanobacteria Density (cells/mL)")))
-SI_fig4b #prints the figure
-#save manually
-```
-
-3D plots graphed.

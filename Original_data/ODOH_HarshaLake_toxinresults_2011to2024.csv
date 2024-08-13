@@ -1,0 +1,37 @@
+Sample_date,Analyte,Method,Site,Value,Units,Qualifier,Sample_type
+7/8/2022,Microcystin,Microcystins-ADDA ELISA,ENN,0.828,ug/L,None,Spatial Composite Sample
+6/27/2022,Microcystin,Microcystins-ADDA ELISA,ENN,1.15,ug/L,None,Spatial Composite Sample
+6/14/2022,Cylindrospermopsin,Cylindrospermopsins-ADDA ELISA,ENN,0.05,ug/L,Below,Spatial Composite Sample
+6/14/2022,Microcystin,Microcystins-ADDA ELISA,ENN,8.59,ug/L,None,Spatial Composite Sample
+8/24/2021,Microcystin,Microcystins-ADDA ELISA,ENN,1.474,ug/L,None,Spatial Composite Sample
+8/18/2021,Microcystin,Microcystins-ADDA ELISA,ENN,1.81,ug/L,None,Individual Sample
+8/10/2021,Microcystin,Microcystins-ADDA ELISA,ENN,5,ug/L,Above,Spatial Composite Sample
+8/3/2021,Microcystin,Microcystins-ADDA ELISA,ENN,1.89,ug/L,None,Individual Sample
+7/28/2021,Microcystin,Microcystins-ADDA ELISA,ENN,33.2,ug/L,None,Spatial Composite Sample
+7/14/2021,Microcystin,Microcystins-ADDA ELISA,ENN,500,ug/L,Above,Spatial Composite Sample
+7/6/2021,Microcystin,Microcystins-ADDA ELISA,ENN,500,ug/L,Above,Spatial Composite Sample
+7/13/2016,Microcystin,Microcystins-ADDA ELISA,ENN,2.9,ug/L,None,Spatial Composite Sample
+7/7/2016,Microcystin,Microcystins-ADDA ELISA,ENN,3.5,ug/L,None,Spatial Composite Sample
+6/30/2016,Microcystin,Microcystins-ADDA ELISA,ENN,45,ug/L,None,Spatial Composite Sample
+6/22/2016,Microcystin,Microcystins-ADDA ELISA,ENN,5.5,ug/L,None,Vertical Composite Sample
+6/15/2016,Microcystin,Microcystins-ADDA ELISA,ENN,50,ug/L,None,Individual Sample
+6/10/2016,Microcystin,Microcystins-ADDA ELISA,ENN,50,ug/L,None,Individual Sample
+6/29/2022,Microcystin,Microcystins-ADDA ELISA,EMB,2.62,ug/L,None,Spatial Composite Sample
+6/14/2022,Microcystin,Microcystins-ADDA ELISA,EMB,2.23,ug/L,None,Spatial Composite Sample
+8/18/2021,Microcystin,Microcystins-ADDA ELISA,EMB,1.32,ug/L,None,Spatial Composite Sample
+8/10/2021,Microcystin,Microcystins-ADDA ELISA,EMB,0.897,ug/L,None,Spatial Composite Sample
+8/3/2021,Microcystin,Microcystins-ADDA ELISA,EMB,11,ug/L,None,Spatial Composite Sample
+7/28/2021,Microcystin,Microcystins-ADDA ELISA,EMB,1.95,ug/L,None,Spatial Composite Sample
+7/14/2021,Microcystin,Microcystins-ADDA ELISA,EMB,226,ug/L,None,Spatial Composite Sample
+7/6/2021,Microcystin,Microcystins-ADDA ELISA,EMB,30,ug/L,None,Spatial Composite Sample
+7/6/2020,Microcystin,Microcystins-ADDA ELISA,EMB,3.97,ug/L,None,Spatial Composite Sample
+7/1/2020,Microcystin,Microcystins-ADDA ELISA,EMB,4.2,ug/L,None,Spatial Composite Sample
+6/29/2020,Microcystin,Microcystins-ADDA ELISA,EMB,5,ug/L,Above,Spatial Composite Sample
+7/31/2017,Microcystin,Microcystins-ADDA ELISA,EMB,3.9,ug/L,None,Spatial Composite Sample
+7/21/2017,Microcystin,Microcystins-ADDA ELISA,EMB,4.34,ug/L,None,Spatial Composite Sample
+6/7/2017,Microcystin,Microcystins-ADDA ELISA,EMB,3.78,ug/L,None,Spatial Composite Sample
+7/7/2016,Microcystin,Microcystins-ADDA ELISA,EMB,2.6,ug/L,None,Spatial Composite Sample
+6/30/2016,Microcystin,Microcystins-ADDA ELISA,EMB,3.9,ug/L,None,Spatial Composite Sample
+6/22/2016,Microcystin,Microcystins-ADDA ELISA,EMB,22,ug/L,None,Individual Scum Sample
+6/15/2016,Microcystin,Microcystins-ADDA ELISA,EMB,8.5,ug/L,None,Individual Sample
+6/10/2016,Microcystin,Microcystins-ADDA ELISA,EMB,3.6,ug/L,None,Individual Sample
