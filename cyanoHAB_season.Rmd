@@ -25,7 +25,7 @@ Packages loaded.
 b) loading the phytoplankton data...
 
 ```{r}
-phyto<-read.csv(file="Original_data/HarshaLake_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
+phyto<-read.csv(file="Cleaned_data/HarshaLake_phytoplankton.csv", header=TRUE) #has the phytoplankton community dataset
 ```
 
 Phytoplankton community data loaded. 
@@ -33,7 +33,7 @@ Phytoplankton community data loaded.
 c) loading the Secchi depth data...
 
 ```{r}
-Secchi<- read.csv(file="Original_data/HarshaLake_secchi.csv") #has Secchi depth data
+Secchi<- read.csv(file="Cleaned_data/HarshaLake_Secchi.csv") #has Secchi depth data
 ```
 
 Secchi depth data loaded.
@@ -47,22 +47,64 @@ a) defining and reformatting data for cyanobacteria relative biovolume (CRB) and
 colnames(phyto) #identify labels for fields to filter
 unique(phyto$SiteID) #determine the label for the site
 unique(phyto$Division) #determine the label for cyanobacteria
-head(phyto$Collection_Date) #determine format for sample date
+head(phyto$CollectionDate) #determine format for sample date
+min(phyto$CollectionDate) #earliest sample date
+max(phyto$CollectionDate) #latest sample date
 unique(phyto$Depth_ft) #determine the depth most data was collected
+summary(phyto$SampleSpecificCellRelativeAbundance_Perc) #check for NAs
+summary(phyto$TaxaSpecificCellDensity_cellsmL) #check for NAs
 
-### filter and reformat data ###
-HL_cyanos<- phyto %>%
-  mutate(sampledate=as.Date(Collection_Date, 
-                            format="%m/%d/%Y",origin="1899-12-30")) %>% #tells R to format field as Datey
+### Site 1: BUO ###
+BUO_cyanos<- phyto %>%
+  mutate(sampledate=as.Date(CollectionDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30")) %>% #tells R field contains dates
   filter(SiteID=="BUO", #filter for buoy site data
-         Division=="Cyanobacteria"  | Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
+         Division=="Cyanobacteria"|Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
   group_by(sampledate) %>% #group all observations by sample date
-  summarize(cyano_relabund=sum(SampleSpecific_Cell_Relative_Abundance_percent), #add all observations of cyanobacteria biovolumes together for each sample date
-            CD_cellsmL=sum(TaxaSpecific_CellDensity_cellspermL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  filter(cyano_relabund<=100) #remove any invalid records (>100%  not valid entry)
+  summarize(cyano_relabund=sum(SampleSpecificCellRelativeAbundance_Perc, na.rm=TRUE), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecificCellDensity_cellsmL, na.rm=TRUE)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
+  ungroup()
 
-### save as new data file in Cleaned data folder ###
-write.csv(HL_cyanos, file="Cleaned_data/HarshaLake_cyanos.csv")
+### Site 2: EFL ###
+EFL_cyanos<- phyto %>%
+  mutate(sampledate=as.Date(CollectionDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30")) %>% #tells R field contains dates
+  filter(SiteID=="EFL", #filter for buoy site data
+         Division=="Cyanobacteria"|Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(cyano_relabund=sum(SampleSpecificCellRelativeAbundance_Perc), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecificCellDensity_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
+  ungroup()
+
+### Site 3: EMB ###
+EMB_cyanos<- phyto %>%
+  mutate(sampledate=as.Date(CollectionDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30")) %>% #tells R field contains dates
+  filter(SiteID=="EMB", #filter for buoy site data
+         Division=="Cyanobacteria"|Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(cyano_relabund=sum(SampleSpecificCellRelativeAbundance_Perc), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecificCellDensity_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
+  ungroup()
+
+### Site 4: ENN ###
+ENN_cyanos<- phyto %>%
+  mutate(sampledate=as.Date(CollectionDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30")) %>% #tells R field contains dates
+  filter(SiteID=="ENN", #filter for buoy site data
+         Division=="Cyanobacteria"|Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
+  group_by(sampledate) %>% #group all observations by sample date
+  summarize(cyano_relabund=sum(SampleSpecificCellRelativeAbundance_Perc), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecificCellDensity_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
+  ungroup()
 ```
 
 Cyanobacteria data defined and filtered.
@@ -72,23 +114,53 @@ b) defining and reformatting the Secchi depth data...
 ```{r}
 ### identify the labels used for fields ###
 colnames(Secchi) #identify labels for fields to filter
-unique(Secchi$id) #determine the label for the site
-head(Secchi$Date) #determine format for sample date
-
-### filter and reformat data ###
+unique(Secchi$SiteID) #determine the label for the site
+head(Secchi$SampleDate) #determine format for sample date
+unique(Secchi$Variable) #check the variables 
+unique(Secchi$Unit) #check units
 in_m <- 0.0254 #conversion factor from inch to meter
-HL_Secchi<- Secchi %>%
-  mutate(sampledate=as.Date(Date, 
+
+### Site 1: BUO ###
+BUO_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(SampleDate, 
                             format="%m/%d/%Y",
                             origin="1899-12-30"),#tells R to format field as Date
          SD_m=Value*in_m) %>% #adds units to field
-  filter(id=="EMB" | id=="EFL",#filter for the two sample sites
-         
-         Analyte=="Secchi") %>% 
-  select(sampledate, SD_m)  #select the fields needed
+  filter(SiteID=="BUO") %>% #filter for the two sample sites
+  select(sampledate, SD_m) %>%  #select the fields needed
+  group_by(sampledate) %>% #group data by sample date
+  summarize(SD_m=mean(SD_m, na.rm = TRUE)) #average the Secchi depth 
 
-### average the SD by sample date ###
-HL_SD<- HL_Secchi %>%
+### Site 2: EFL ###
+EFL_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(SampleDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30"),#tells R to format field as Date
+         SD_m=Value*in_m) %>% #adds units to field
+  filter(SiteID=="EFL") %>% #filter for the two sample sites
+  select(sampledate, SD_m) %>%  #select the fields needed
+  group_by(sampledate) %>% #group data by sample date
+  summarize(SD_m=mean(SD_m, na.rm = TRUE)) #average the Secchi depth 
+
+### Site 3: EMB ###
+EMB_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(SampleDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30"),#tells R to format field as Date
+         SD_m=Value*in_m) %>% #adds units to field
+  filter(SiteID=="EMB") %>% #filter for the two sample sites
+  select(sampledate, SD_m) %>%  #select the fields needed
+  group_by(sampledate) %>% #group data by sample date
+  summarize(SD_m=mean(SD_m, na.rm = TRUE)) #average the Secchi depth 
+
+### Site 4: ENN ###
+ENN_Secchi<- Secchi %>%
+  mutate(sampledate=as.Date(SampleDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30"),#tells R to format field as Date
+         SD_m=Value*in_m) %>% #adds units to field
+  filter(SiteID=="ENN") %>% #filter for the two sample sites
+  select(sampledate, SD_m) %>%  #select the fields needed
   group_by(sampledate) %>% #group data by sample date
   summarize(SD_m=mean(SD_m, na.rm = TRUE)) #average the Secchi depth 
 ```
@@ -97,7 +169,28 @@ Secchi depth data defined and filtered.
 
 c) merging the data...
 ```{r}
-cyanoHAB_season<- merge(HL_cyanos, HL_SD, by=c("sampledate"),
+cyanos<- phyto %>%
+  mutate(sampledate=as.Date(CollectionDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30")) %>% #tells R field contains dates
+  filter(Division=="Cyanobacteria"|Division==" Cyanobacteria ") %>% #filter for cyanobacteria data
+  group_by(SiteID, sampledate) %>% #group all observations by sample date
+  summarize(cyano_relabund=sum(SampleSpecificCellRelativeAbundance_Perc), #add all observations of cyanobacteria biovolumes together for each sample date
+            CD_cellsmL=sum(TaxaSpecificCellDensity_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
+  filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
+  ungroup()
+
+Secchi2<- Secchi %>%
+  mutate(sampledate=as.Date(SampleDate, 
+                            format="%m/%d/%Y",
+                            origin="1899-12-30"),#tells R to format field as Date
+         SD_m=Value*in_m) %>% #adds units to field
+  select(SiteID, sampledate, SD_m) %>%  #select the fields needed
+  group_by(SiteID, sampledate) %>% #group data by sample date
+  summarize(SD_m=mean(SD_m, na.rm = TRUE)) %>% #average the Secchi depth 
+  ungroup()
+
+cyanoHAB_season<- merge(cyanos, Secchi2, by=c("SiteID", "sampledate"),
                        all =TRUE) #merges data frames and keeps all records 
 cyanoHAB_season<- cyanoHAB_season %>%
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
@@ -116,6 +209,8 @@ a<- ggplot(data=cyanoHAB_season, aes(x=daynum, y=SD_m)) + #plots SD across day
   geom_point() + #plots observations as points
   theme_classic(base_size=12) +
   geom_smooth()+
+  facet_wrap(~SiteID) +
+  geom_vline(xintercept = 166, lty="dashed")+ #add line for June 15th
   labs(x="Day of year", y="Secchi depth (m)") +
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=-Inf, xmax=152, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
