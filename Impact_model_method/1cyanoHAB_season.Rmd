@@ -62,9 +62,6 @@ cyanos<- HL_cyanos %>%
             CD_cellsmL=sum(TaxaSpecific_CellDensity_cellspermL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
   ungroup() %>%
   filter(cyano_relbiovol<=100.1)
-
-### save as new data file in Cleaned data folder ###
-write.csv(cyanos, file="Cleaned_data/HarshaLake_cyanos.csv")
 ```
 
 Cyanobacteria data defined and filtered.
