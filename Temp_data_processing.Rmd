@@ -1,23 +1,17 @@
 ---
-title: "Temp_data_processing.Rmd"
+title: "Thermocline_calc"
 author: "Lauren Knose"
-date: "2024-07-18"
+date: "2024-09-12"
 output: html_document
-editor_options: 
-  chunk_output_type: console
 ---
 
-The purpose of this program is to reformat and combine the temperature data for Harhsa Lake.
+The purpose fo this program is to process Harsh Lake water temperature observations and calculate thermocline depth for each observation. This program is applied to data from the BUO site in Harsha Lake, Ohio.
 
-# Step 1. Load dependent data and programs:
+# Step 1. load dependent packages and data needed:
 
-a) loading dependent programs...
+a) Loading the dependent packages...
 
 ```{r}
-### install packages as needed ###
-#install.packages(c("dplyr", "ggplot2", "rLakeAnalyzer", "reshape2", "zoo", "tidyverse"))
-
-### load packages to environment ###
 library(dplyr) #needed for transforming data
 library(ggplot2) #needed for plotting
 library(rLakeAnalyzer) #needed to find thermocline depth from temperature profile
@@ -26,119 +20,197 @@ library(zoo) #needed to linearly interpolate missing values
 library(tidyverse) #needed for crossing function
 ```
 
-Programs loaded.
+Packages loaded.
 
-
-b) loading dependent data...
+b) Loading the data with total P concentrations, water temperature, and external P loads...
 
 ```{r}
-tnode1<- read.csv(file="Original_data/tnode_16-19.csv")
-tsonde1<- read.csv(file="Original_data/Sondemaster_03092020.csv")
+watertemp<-read.csv(file="Cleaned_data/HarshaLake_temperature.csv") 
 ```
 
 Data loaded.
 
-# Step 2. Reformat data: 
+# Step 2. Reformat and filter data:
 
-a) identifying filter parameters...
-
-```{r}
-### print the column headers ###
-colnames(tnode1)
-
-### print the unique sites ###
-unique(tnode1$Site)
-
-### print the date range ###
-min(tnode1$Date)
-max(tnode1$Date)
-
-### print the units ###
-unique(tnode1$Parameter)
-unique(tnode1$Units)
-```
-
-Column headers identified.
-
-b) reformatting temperature data for file 1...
+a) reformatting water temperature data...
 
 ```{r}
-### reformat water temperature data ###
-tnode1<- tnode1 %>% #make new data frame
-  mutate(sampledate=as.Date(Date, format="%Y-%m-%d",#specify format of date
+### describe water temperature data ###
+unique(watertemp$SiteID) #print site identifiers
+unique(watertemp$Units) #print the units for depth in the data
+ft_m<- 0.3048# conversion factor from feet to m
+
+### reformat data ###
+watertemp2<- watertemp %>% #make new data frame
+  mutate(sampledate=as.Date(SampleDate, format="%m/%d/%Y",#specify format of date
                             origin="1899-12-30"),
          Yr=as.integer(format(sampledate, format="%Y")),
-         daynum=as.integer(format(sampledate, format="%j"))) #add in day number
+         daynum=as.integer(format(sampledate, format="%j")),
+         Temp_C=as.numeric(Temp_C),
+         Depth_m=ifelse(Units=="ft", 
+                        Depth*ft_m, #if ft, then convert to m
+                        Depth #else return value in m
+                        )) %>% #add in day number
+  rename(watertemp_C=Temp_C) %>%#rename column with units 
+  select(sampledate, SiteID, Depth_m, watertemp_C, daynum, Yr) %>%
+  filter(!is.na(watertemp_C),
+         !is.na(Depth_m)) %>% #remove NAs
+  filter(daynum>=152 & daynum <=288) #filter for cyanoHAB season
 
-### remove unnecessary fields ###
-tnode1$Site=NULL
-tnode1$Parameter=NULL
-tnode1$Date=NULL
-tnode1$Units=NULL 
-tnode1$latitude=NULL
-tnode1$longitude=NULL
+### average a single temperature by date and depth ###
+WT<- watertemp2 %>%
+  group_by(SiteID, sampledate, Depth_m) %>%
+  summarize(avgtemp_C=mean(watertemp_C, na.rm=TRUE)) %>%
+  ungroup()
 
-### reshape water temp data to long format ###
-tnode1_long<- melt(tnode1, id.vars=c("sampledate", "Yr", "daynum", "Time"), value.name="watertemp_C", variable.name="depth_m")
-
-### clean up data fields ###
-tnode1_long<- tnode1_long %>%
-  mutate(depth_m=as.character(depth_m))
-tnode1_long$depth_m[tnode1_long$depth_m == "X0_m"] <- "0"
-tnode1_long$depth_m[tnode1_long$depth_m == "X2_m"] <- "2"
-tnode1_long$depth_m[tnode1_long$depth_m == "X4_m"] <- "4"
-tnode1_long$depth_m[tnode1_long$depth_m == "X6_m"] <- "6"
-tnode1_long$depth_m[tnode1_long$depth_m == "X8_m"] <- "8"
-tnode1_long$depth_m[tnode1_long$depth_m == "X10_m"] <- "10"
-tnode1_long$depth_m[tnode1_long$depth_m == "X12_m"] <- "12"
-tnode1_long$depth_m[tnode1_long$depth_m == "X14_m"] <- "14"
-tnode1_long$depth_m[tnode1_long$depth_m == "X16_m"] <- "16"
-tnode1_long$depth_m[tnode1_long$depth_m == "X18_m"] <- "18"
-tnode1_long<- tnode1_long %>%
-  mutate(depth_m=as.numeric(depth_m)) %>%
-  filter(!c(watertemp_C==""| watertemp_C<0))
+### print min and max depth by site ###
+WT %>% group_by(SiteID) %>% summarise(Zmin_m=min(Depth_m),
+                     Zmax_m=max(Depth_m),
+                     Zavg_m=mean(Depth_m, na.rm=TRUE)) %>% print()
 ```
 
-Temp data reformatted.
-
-c) reformatting temperature node data for file 2...
+b) filtering data by site...
 
 ```{r}
-
+### filter by site ###
+BUO_WT<- WT %>% filter(SiteID=="BUO")
+write.csv(BUO_WT, file="Cleaned_data/HarshaLake_BUO_temp.csv")
+EMB_WT<- WT %>% filter(SiteID=="EMB")
+write.csv(EMB_WT, file="Cleaned_data/HarshaLake_EMB_temp.csv")
+EFL_WT<- WT %>% filter(SiteID=="EFL")
+write.csv(EFL_WT, file="Cleaned_data/HarshaLake_EFL_temp.csv")
+ENN_WT<- WT %>% filter(SiteID=="ENN")
+write.csv(ENN_WT, file="Cleaned_data/HarshaLake_ENN_temp.csv")
 ```
 
 Water temperature data reformatted and filtered.
 
-# Step 3. View and summarize data:
+# Step 3. View data:
 
-b) plotting water temperature across depth and date...
+a) plotting water temperature across depth and date...
 
 ```{r}
-### plot water temp across depth (y-axis) and date (x-axis) for data file 1 ###
-tnode1_plot<- ggplot(data=tnode1_long, #create limno plot with depth inverse on y-axis
-       aes(x=daynum, #sampled date as x-axis
-           y=depth_m, 
-           color=watertemp_C)) + #and data points colored by temperature
+### plot water temp across depth (y-axis) and date (x-axis) ###
+WT_fig<- ggplot(data=WT, #create limno plot with depth inverse on y-axis
+       aes(x=sampledate, #sampled date as x-axis
+           y=Depth_m, 
+           color=avgtemp_C)) + #and data points colored by temperature
   geom_point() + #plot points
-  facet_wrap(~Yr) + #make separate plot for each year
+  facet_wrap(~SiteID) + #make separate plot for each year
   scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
   scale_color_gradient(high=scales::muted("red"), #red = hot temp
                         low=scales::muted("blue"), #blue = cold temp
                         name="Water Temperature (C)") + #name of legend
+  #geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
   theme_classic() +
-  labs(x="Day of Year", y="Depth (m)", title="Source: Tnode_16-19.csv") 
-tnode1_plot
-ggsave(tnode1_plot, file="Products/SI_figures/tnode1_plot_color.png")
-
-### plot water temp across depth (y-axis) and date (x-axis) for data file 2 ###
-
+  labs(x="Sampledate", y="Depth (m)") 
+WT_fig
+#ggsave(WT_fig, file="Products/SI_figures/Figure15_color.png")
 ```
 
-Water temperature plotted across depth and date.
+Water temperature plotted.
 
-b) summarizing water temperature data...
+# Step 5. Interpolate missing values:
+
+a) interpolating water temperature across depth...
 
 ```{r}
-summary(tnode2_long$watertemp_C)
+### create a function to interpolate across depth for each sample date ###
+estimate_Temp_by_date <- function(target_date, target_depth) { #write function that
+  data_for_date <- BUO_WT %>% #creates a new data frame for a single date
+    filter(sampledate == target_date) %>% #filters for specific date
+    arrange(Depth_m) #and arranges depths min to max
+  approx(data_for_date$Depth_m, #linear regression interpolation of
+         data_for_date$avgtemp_C, #y values
+         xout = target_depth)$y #from depth min to max
+}
 
+### filter out any observations that have < 2 values (needed for interpolation) ###
+water_interp<- BUO_WT %>%
+  group_by(sampledate) %>% #for each sample date
+  filter(!n()<2) %>% #remove dates with less than 2 observations
+  ungroup() #ungroup table
+
+### interpolate temp across depth within each sample date ###
+WT_interp_depth <- crossing( #creates a tibble that 
+  tibble(date = unique(water_interp$sampledate)), #has same dates as those in frame
+  # depths can now be any value
+  tibble(Depth_m = seq(0, 18, #define depth min and max
+                       length.out = 19)) #set the number of interpolated values
+) %>%
+  group_by(date) %>%
+  mutate(avgTemp_C = estimate_Temp_by_date(date[1], Depth_m),
+         daynum=as.integer(format(date, format="%j"))) %>%
+  ungroup()
+
+### save as data frame ###
+Temp_interp_depth<- as.data.frame(WT_interp_depth)
+
+### plot interpolated water temp data ###
+BUO_temp<- ggplot(data=Temp_interp_depth, #create limno plot with depth inverse 
+       aes(x=daynum, #sample date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=avgTemp_C)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(format(date, "%Y"))) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Average Water Temperature (Celsius)") + 
+  theme_classic() +
+  labs(x="Date", y="Depth (m)")  #add axis labels
+BUO_temp #print plot
 ```
+
+Temperature interpolated across depth.
+
+# Step 6. Calculate the thermocline depth:
+Note, data frame needs to be in wide format with each depth a separate column (add prefix= "wtr_") to match package function dependencies.
+
+a) calculating the thermocline depth...
+
+```{r}
+### reformat data for input into rLakeAnalyzer ###
+wtr<- dcast(Temp_interp_depth, date ~ Depth_m, value.var="avgTemp_C") # reshape depth from long to wide
+colnames(wtr)<- paste("wtr", colnames(wtr), sep="_") #add wtr_ before column name
+# fit package format dependencies
+wtr<- wtr %>%
+  rename(datetime=wtr_date) #rename column to fit package format dependencies
+
+### determine the thermocline depth for each date ###
+t.d<- ts.thermo.depth(wtr, na.rm=TRUE) #calculates thermocline depth as time series
+
+### separate data by year then assign lagged thermocline depth ###
+t.d2<- t.d %>% #make new table
+  mutate(Yr=as.numeric(format(datetime, "%Y")),
+         daynum=as.integer(format(datetime, "%j"))) %>% #add in year
+  group_by(Yr) %>% #for each year of day
+  rename(Thermo_depth_m=thermo.depth) %>% #rename field with units
+  mutate(Thermo_depth_m_k1=lag(Thermo_depth_m, n=1)) %>% #lag thermocline 
+  ungroup()
+
+### reassign first thermocline depth at t-1 each year (Nas) as thermocline depth at t ###
+t.d2$Thermo_depth_m_k1[is.na(t.d2$Thermo_depth_m_k1)] <- t.d2$Thermo_depth_m[is.na(t.d2$Thermo_depth_m_k1)]#replace NAs in t-1 with the t value
+
+### plot the thermocline depth by date ###
+thermo_fig<- ggplot(data=t.d2, aes(x=daynum, 
+                     y=Thermo_depth_m))+ #plot thermocline depth across date
+  geom_point(shape=1) + #points as open circles
+  scale_y_reverse() + #reverse the y scale for limno plot
+  theme_classic() +
+  facet_wrap(~Yr) +
+  labs(x="Day of Year", y="Thermocline depth (m)")#add axis labels
+thermo_fig
+```
+
+Thermocline depth calculated.
+
+b) calculating change in thermocline depth between observations...
+
+```{r}
+### calculate change in thermocline depth ###
+t.d2<- data.frame(t.d2) %>%
+  mutate(Chg_Thermodepth_m= Thermo_depth_m-Thermo_depth_m_k1)
+```
+
+Change in thermocline depth between observations calculated. 
