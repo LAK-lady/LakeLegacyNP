@@ -30,11 +30,13 @@ b) Loading the data with total P concentrations, water temperature, and external
 
 ```{r}
 ### load data with total P concentration measurements ###
-water_P<- read.csv(file="Original_data/HarshaLake_chem.csv", header=TRUE) #has nutrient data measured in lake
+water_P<- read.csv(file="Original_data/HarshaLake_chem.csv", header=TRUE) 
 
 ### load data with water temperature measurements ###
-watertemp<-read.csv(file="Original_data/ntl29_v12_temp.csv") #data from temp string
+watertemp<-read.csv(file="Cleaned_data/HarshaLake_temperature.csv") 
 ```
+
+Data loaded.
 
 # Step 2. Reformat and filter data:
 
@@ -43,7 +45,6 @@ a) reformatting and filtering water P data...
 ```{r}
 ### add conversion factors ###
 ugL_mgL<- 1/1000
-ft_m<- 0.3048# conversion factor from feet to m
 
 ### reformat water P data ###
 water_P2<- water_P %>%
@@ -69,21 +70,48 @@ Water column P data formatted and filtered.
 b) reformatting and filtering water temperature data...
 
 ```{r}
-### reformat water temperature data ###
+### describe water temperature data ###
+unique(watertemp$SiteID) #print site identifiers
+unique(watertemp$Units) #print the units for depth in the data
+ft_m<- 0.3048# conversion factor from feet to m
+
+### reformat data ###
 watertemp2<- watertemp %>% #make new data frame
-  mutate(sampledate=as.Date(sampledate, format="%m/%d/%Y",#specify format of date
+  mutate(sampledate=as.Date(SampleDate, format="%m/%d/%Y",#specify format of date
                             origin="1899-12-30"),
-         daynum=as.integer(format(sampledate, format="%j"))) %>% #add in day number
-  rename(Yr=year4, #rename year field
-         Depth_m=depth, #rename column with units
-         watertemp_C=wtemp) #rename column with units 
-### filter water temperature data ###
-watertemp2<- watertemp2 %>%
-  filter(lakeid=="ME") %>% #filter for Lake Mendota data only
-  filter(rep==1) %>% #filter for rep 1 (no analytical reps)
-  filter(Yr>=2013 & Yr <=2018) %>% #filter for the study years 
-  select(sampledate, Depth_m, watertemp_C, daynum, Yr) #%>% #select vars needed
-#  filter(!is.na(watertemp_C)) #remove NAs
+         Yr=as.integer(format(sampledate, format="%Y")),
+         daynum=as.integer(format(sampledate, format="%j")),
+         Temp_C=as.numeric(Temp_C),
+         Depth_m=ifelse(Units=="ft", 
+                        Depth*ft_m, #if ft, then convert to m
+                        Depth #else return value in m
+                        )) %>% #add in day number
+  rename(watertemp_C=Temp_C) %>%#rename column with units 
+  select(sampledate, SiteID, Depth_m, watertemp_C, daynum, Yr) %>%
+  filter(!is.na(watertemp_C),
+         !is.na(Depth_m)) %>% #remove NAs
+  filter(daynum>=152 & daynum <=288) #filter for cyanoHAB season
+
+### average a single temperature by date and depth ###
+WT<- watertemp2 %>%
+  group_by(SiteID, sampledate, Depth_m) %>%
+  summarize(avgtemp_C=mean(watertemp_C, na.rm=TRUE)) %>%
+  ungroup()
+
+### print min and max depth by site ###
+WT %>% group_by(SiteID) %>% summarise(Zmin_m=min(Depth_m),
+                     Zmax_m=max(Depth_m),
+                     Zavg_m=mean(Depth_m, na.rm=TRUE)) %>% print()
+
+### filter by site ###
+BUO_WT<- WT %>% filter(SiteID=="BUO")
+write.csv(BUO_WT, file="Cleaned_data/HarshaLake_BUO_temp.csv")
+EMB_WT<- WT %>% filter(SiteID=="EMB")
+write.csv(EMB_WT, file="Cleaned_data/HarshaLake_EMB_temp.csv")
+EFL_WT<- WT %>% filter(SiteID=="EFL")
+write.csv(EFL_WT, file="Cleaned_data/HarshaLake_EFL_temp.csv")
+ENN_WT<- WT %>% filter(SiteID=="ENN")
+write.csv(ENN_WT, file="Cleaned_data/HarshaLake_ENN_temp.csv")
 ```
 
 Water temperature data reformatted and filtered.
@@ -116,22 +144,21 @@ Total P concentrations plotted across depth and date.
 b) plotting water temperature across depth and date...
 
 ```{r}
-### plot water temp across depth (y-axis) and date (x-axis) ###
-SI_fig15<- ggplot(data=subset(watertemp2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
-       aes(x=daynum, #sampled date as x-axis
+WT_fig<- ggplot(data=WT, #create limno plot with depth inverse on y-axis
+       aes(x=sampledate, #sampled date as x-axis
            y=Depth_m, 
-           color=watertemp_C)) + #and data points colored by temperature
+           color=avgtemp_C)) + #and data points colored by temperature
   geom_point() + #plot points
-  facet_wrap(~Yr) + #make separate plot for each year
+  facet_wrap(~SiteID) + #make separate plot for each year
   scale_y_reverse() + #inverses the y-axis from zero to max(depth) for limno plot
   scale_color_gradient(high=scales::muted("red"), #red = hot temp
                         low=scales::muted("blue"), #blue = cold temp
                         name="Water Temperature (C)") + #name of legend
-  geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
+  #geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
   theme_classic() +
-  labs(x="Day of Year", y="Depth (m)") 
-SI_fig15
-ggsave(SI_fig15, file="Products/SI_figures/Figure15_color.png")
+  labs(x="Sampledate", y="Depth (m)") 
+WT_fig
+#ggsave(WT_fig, file="Products/SI_figures/Figure15_color.png")
 ```
 
 Water temperature plotted across depth and date.
@@ -217,7 +244,7 @@ P_ratio<- P_ratio %>%
 
 P_hypo:epi calculated.
 
-# Step 5. Interpolate missing P values across depth:
+# Step 5. Interpolate missing values:
 
 a) interpolating missing P concentrations across depth...
 
@@ -253,13 +280,7 @@ TotP_interp_depth <- crossing( #creates a tibble that
 
 ### save as data frame ###
 TotP_interp_depth<- as.data.frame(TotP_interp_depth)
-```
 
-Total P interpolated across depth
-
-b) plotting interpolated P across depth..
-
-```{r}
 ### plot interpolated water P data ###
 SI_fig14<- ggplot(data=subset(TotP_interp_depth, daynum>=196 & daynum<=252), #create limno plot with depth inverse on y-axis
        aes(x=as.integer(format(date, "%j")), #sample date as x-axis
@@ -280,54 +301,113 @@ ggsave(SI_fig14, file="Products/SI_figures/Figure14_color.png") #save plot
 
 P concentration interpolated across depth.
 
+b) interpolating water temperature across depth...
+
+```{r}
+### create a function to interpolate across depth for each sample date ###
+estimate_Temp_by_date <- function(target_date, target_depth) { #write function that
+  data_for_date <- BUO_WT %>% #creates a new data frame for a single date
+    filter(sampledate == target_date) %>% #filters for specific date
+    arrange(Depth_m) #and arranges depths min to max
+  approx(data_for_date$Depth_m, #linear regression interpolation of
+         data_for_date$avgtemp_C, #y values
+         xout = target_depth)$y #from depth min to max
+}
+
+### filter out any observations that have < 2 values (>2 values needed for interpolation) ###
+water_interp<- BUO_WT %>%
+  group_by(sampledate) %>% #for each sample date
+  filter(!n()<2) %>% #remove dates with less than 2 observations
+  ungroup() #ungroup table
+
+### interpolate temp across depth within each sample date ###
+WT_interp_depth <- crossing( #creates a tibble that 
+  tibble(date = unique(water_interp$sampledate)), #has same dates as those in frame
+  # depths can now be any value
+  tibble(Depth_m = seq(0, 18, #define depth min and max
+                       length.out = 19)) #set the number of interpolated values
+) %>%
+  group_by(date) %>%
+  mutate(avgTemp_C = estimate_Temp_by_date(date[1], Depth_m),
+         daynum=as.integer(format(date, format="%j"))) %>%
+  ungroup()
+
+### save as data frame ###
+Temp_interp_depth<- as.data.frame(WT_interp_depth)
+
+### plot interpolated water temp data ###
+BUO_temp<- ggplot(data=Temp_interp_depth, #create limno plot with depth inverse on y-axis
+       aes(x=daynum, #sample date as x-axis
+           y=Depth_m, #depth as y-axis
+           color=avgTemp_C)) + #and data points colored by temperature
+  geom_point()+
+  facet_wrap(~as.factor(format(date, "%Y"))) + #makes separate plot for each year
+  scale_y_reverse() + #inverses the y-axis from zero to max(depth)
+  scale_color_gradient(high=scales::muted("red"), #red = high P concentration
+                        low=scales::muted("blue"), #blue = low P concentration
+                        name="Average Water Temperature (Celsius)") + 
+  #geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
+  theme_classic() +
+  labs(x="Date", y="Depth (m)")  #add axis labels
+BUO_temp #print plot
+#ggsave(BUO_temp, file="Products/SI_figures/Figure14_color.png") #save plot
+```
+
+Temperature interpolated across depth.
+
 # Step 6. Calculate the change in epilimnion volume:
 Note, data frame needs to be in wide format with each depth a separate column (add prefix= "wtr_") to match package function dependencies.
 
-a) calculating change in thermocline depth...
+a) calculating the thermocline depth...
 
 ```{r}
 ### reformat data for input into rLakeAnalyzer ###
-wtr<- watertemp2 %>%
-  select(sampledate, Depth_m, watertemp_C) #only include needed columns
-wtr<- dcast(wtr, sampledate ~ Depth_m) # reshape depth from long to wide
+wtr<- dcast(Temp_interp_depth, date ~ Depth_m, value.var="avgTemp_C") # reshape depth from long to wide
 colnames(wtr)<- paste("wtr", colnames(wtr), sep="_") #add wtr_ before column name
 # fit package format dependencies
 wtr<- wtr %>%
-  rename(datetime=wtr_sampledate) #rename column to fit package format dependencies
+  rename(datetime=wtr_date) #rename column to fit package format dependencies
 
-### determine the thermocline depth ###
+### determine the thermocline depth for each date ###
 t.d<- ts.thermo.depth(wtr, na.rm=TRUE) #calculates thermocline depth as time series
 
-### plot the thermocline depth by date ###
-SI_fig17<- ggplot(data=t.d, aes(x=datetime, 
-                     y=thermo.depth))+ #plot thermocline depth across date
-  geom_point(shape=1) + #points as open circles
-  geom_line() + #add lines between points
-  scale_y_reverse() + #reverse the y scale for limno plot
-  theme_classic() +
-  labs(x="Date", y="Thermocline depth (m)")#add axis labels
-SI_fig17
-ggsave(SI_fig17, file="Products/SI_figures/Figure17.png")
-
-### seperate data by year then assign thermocline depth for each observation (t) ###
+### separate data by year then assign lagged thermocline depth ###
 t.d2<- t.d %>% #make new table
-  mutate(Yr=as.numeric(format(datetime, "%Y"))) %>% #add in year
+  mutate(Yr=as.numeric(format(datetime, "%Y")),
+         daynum=as.integer(format(datetime, "%j"))) %>% #add in year
   group_by(Yr) %>% #for each year of day
-  rename(Thermo_depth_m=thermo.depth) %>% #add units and remove duplicate column
-  mutate(Thermo_depth_m_k1=lag(Thermo_depth_m, n=1)) %>% #thermocline depth at t-1 
+  rename(Thermo_depth_m=thermo.depth) %>% #rename field with units
+  mutate(Thermo_depth_m_k1=lag(Thermo_depth_m, n=1)) %>% #lag thermocline 
   ungroup()
 
 ### reassign first thermocline depth at t-1 each year (Nas) as thermocline depth at t ###
 t.d2$Thermo_depth_m_k1[is.na(t.d2$Thermo_depth_m_k1)] <- t.d2$Thermo_depth_m[is.na(t.d2$Thermo_depth_m_k1)]#replace NAs in t-1 with the t value
 
+### plot the thermocline depth by date ###
+thermo_fig<- ggplot(data=t.d2, aes(x=daynum, 
+                     y=Thermo_depth_m))+ #plot thermocline depth across date
+  geom_point(shape=1) + #points as open circles
+  scale_y_reverse() + #reverse the y scale for limno plot
+  theme_classic() +
+  facet_wrap(~Yr) +
+  labs(x="Day of Year", y="Thermocline depth (m)")#add axis labels
+thermo_fig
+#ggsave(SI_fig17, file="Products/SI_figures/Figure17.png")
+```
+
+Thermocline depth calculated.
+
+b) calculating change in thermocline depth between observations...
+
+```{r}
 ### calculate change in thermocline depth ###
 t.d2<- data.frame(t.d2) %>%
   mutate(Chg_Thermodepth_m= Thermo_depth_m-Thermo_depth_m_k1)
 ```
 
-Thermocline depth calculated. 
+Change in thermocline depth between obsrevations calculated. 
 
-b) calculating volume lost or gained to epi...
+c) calculating volume lost or gained to epi...
 
 ```{r}
 ### calculate the change in thermocline depth between t and t-1 to get the volume ###
