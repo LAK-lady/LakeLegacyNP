@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-The purpose of this program is to calculate total external P load from both atmospheric deposition and stream inflows.
+The purpose of this program is to estimate total external P load from atmospheric deposition, stream inflows, and other sources.
 
 # Step 1. Load dependent packages and data needed:
 
@@ -32,7 +32,7 @@ Data loaded.
 
 # Step 2. Reformat and merge data:
 
-a) reformatting data...
+a) reformatting stream data...
 
 ```{r}
 ### identify keys to filter ###
@@ -40,16 +40,32 @@ colnames(streams) #print column names
 unique(streams$Site) #print the different site names
 
 ### filter stream data ###
-streams2<- streams %>%
+streams<- streams %>%
   mutate(X=NULL, #remove index column
          sampledate=as.Date(sampledate,
                             origin="1899-12-30",
                             format="%Y-%m-%d")) %>%
-  filter(Site=="All") %>%
   mutate(Pstreams_kgday=Flux) %>%#reformat date
   filter(Yr>=2013 & Yr<=2018) %>% #filter for the study period
-  select(sampledate, Yr, daynum, Pstreams_kgday) #remove unecessary fields
+  select(sampledate, Yr, daynum, Site, Pstreams_kgday) #select key fields
 
+### transform data frame long to wide ###
+streams2<- dcast(streams, sampledate + Yr + daynum ~ Site, value.var="Pstreams_kgday")
+
+### create field with alternative value for target inflow nutrient reduction scenario ###
+streams3<- streams2 %>%
+  rename(PB_kgday="Pheasant Branch",
+         SMC_kgday="Six Mile Creek",
+         YR_kgday="Yahara River",
+         Pstreams_kgday="All") %>%
+  #mutate(Pstreams_kgday=(Pstreams_kgday-(PB_kgday*0.5))) %>% #counterfactual scenario 1
+  select(sampledate, Yr, daynum, Pstreams_kgday)
+```
+
+Stream data reformatted.
+
+b) reformatting atm data...
+```{r}
 ### identify keys to filter ###
 colnames(atm) #print column names
 
@@ -61,13 +77,13 @@ atm2<- atm %>%
   filter(Yr>=2013 & Yr<=2018) #filter for the study period
 ```
 
-Data reformatted.
+Atm data reformatted.
 
 b) merging data...
 
 ```{r}
 ### merge the two data files ###
-extP_load<- merge(atm2, streams2, by=c("Yr", "daynum", "sampledate")) #adds two data files together
+extP_load<- merge(atm2, streams3, by=c("Yr", "daynum", "sampledate")) #adds two data files together
 ```
 
 Data merged.
@@ -77,9 +93,8 @@ Data merged.
 ```{r}
 ### add fields for total P with and without other P sources ###
 extP_load <- extP_load %>%
-  mutate(Pext_kgday_noother=(Patm_kgday + Pstreams_kgday), #combine atm P and stream P
-         Pother_kgday=(Pext_kgday_noother*.47), #assign new column for P_other with 47% of total
-         Pext_kgday=Pext_kgday_noother*1.47)  #increase P_ext 47% to account for P_other
+  mutate(Pother_kgday=((Patm_kgday + Pstreams_kgday)*.47), #assign new column for P_other with 47% of total
+         Pext_kgday=((Patm_kgday + Pstreams_kgday)*1.47))  #increase P_ext 47% to account for P_other
 ```
 
 External P loading merged.
@@ -133,8 +148,10 @@ b) plotting annual loads by source...
 
 ```{r}
 ### reshape data frame to long format ###
-extP_load_long<- melt(extP_load, #the table you want to reshape wide to long
-               id.vars=c("sampledate", "Yr", "daynum")) #the column to use as unique id
+extP_load_long<- extP_load %>%
+  select(sampledate, Yr, daynum, Patm_kgday, Pstreams_kgday, Pother_kgday, Pext_kgday) 
+extP_load_long<-melt(extP_load_long, #the table you want to reshape wide to long
+       id.vars=c("sampledate", "Yr", "daynum")) #the column to use as unique id
 
 ### reformat fields ###
 extP_load_long<- extP_load_long %>%
@@ -156,42 +173,27 @@ extP_load_source_sum<- extP_load_source %>%
   group_by(Yr, Source) %>%
   summarize(TotP_kgyr=sum(Pext_kgday, na.rm=TRUE)) %>%
   ungroup()
+write.csv(extP_load_source_sum, file="Products/SI_figures/Figure15a_data.csv")
 
-### summarize precipitation by year ###
-precip<- extP_load %>%
-  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
-  select(Yr, Precipitation_in) %>%
-  group_by(Yr) %>%
-  summarize(Precip_inyr=sum(Precipitation_in)) %>%
-  ungroup()
-
-### plot total extP by source and year ###  
-SI_fig12a<- ggplot(data=precip, aes(x=as.character(Yr), y=Precip_inyr)) + 
-  geom_bar(stat="identity", color="black", fill="grey")+ 
-  theme_classic()+
-  labs(x=NULL, y="Precipitation (in)")
-SI_fig12a
-
-SI_fig12b<- ggplot(extP_load_source_sum, aes(x=as.character(Yr), y=TotP_kgyr, 
+### plot total Pext by source and year ###  
+SIfig15a<- ggplot(extP_load_source_sum, aes(x=as.character(Yr), y=TotP_kgyr, 
                              fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("grey", "white", "black")) + #atm = grey, streams=black, other=white
   theme_classic(base_size=12) +
-  labs(x="Year", y="External total P load (kg/yr)")
-SI_fig12b #print plot
-SI_fig12<- ggarrange(SI_fig12a, SI_fig12b, ncol=1, nrow=2, heights=c(0.5, 1))
-SI_fig12
-ggsave(SI_fig12, file="Products/SI_figures/Figure12.png")
+  labs(x="Year", y="External total P load (kg/yr)", title="a)") +
+  theme(legend.position=c(0.2, 0.75))
+SIfig15a #print plot
+ggsave(SIfig15a, file="Products/SI_figures/Figure15a.png")
 ```
 
 Total P load by source for each year plotted.
 
-d) summarizing daily and annual P_ext by source...
+c) summarizing daily and annual P_ext by source...
 
 ```{r}
 ### average daily external P load by source ###
 Pext_day_source<- extP_load_source %>%
-  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
   group_by(Source) %>%
   summarize(mean=mean(Pext_kgday, #average daily total P loading
                       na.rm=TRUE),
@@ -202,7 +204,6 @@ Pext_day_source
 
 ### sum annual external P load by source ###
 extP_load_long_yr<- extP_load_source %>%
-  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
   group_by(Yr, Source) %>%
   summarize(sum=sum(Pext_kgday)) #add total P load
 extP_load_long_yr #print table
