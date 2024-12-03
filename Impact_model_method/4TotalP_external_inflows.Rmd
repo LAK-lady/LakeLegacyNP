@@ -18,14 +18,6 @@ P_load (kg/day) = P concentration * flow rate
 a) Loading the packages needed...
 
 ```{r}
-#install.packages(c("dplyr", "reshape2", "lubridate", "ggplot2", "ggbreak", "remotes")) #use if 1st time using packages
-#library(remotes) #use if 1st time using rloadest
-#remotes::install_github("USGS-R/smwrData") #use if 1st time using rloadest
-#remotes::install_github("USGS-R/smwrBase") #use if 1st time using rloadest
-#remotes::install_github("USGS-R/smwrGraphs") #use if 1st time using rloadest
-#remotes::install_github("USGS-R/smwrStats") #use if 1st time using rloadest
-#remotes::install_github("USGS-R/smwrQW") #use if 1st time using rloadest
-#remotes::install_github("USGS-R/rloadest") #use if 1st time using rloadest
 library(dplyr) #needed for transforming data
 library(ggplot2) #needed for plotting
 library(ggpubr) #needed to plot several graphs together
@@ -91,9 +83,10 @@ YR_P<- YR_P_flow %>%
 
 Data defined and transformed for all inflows.
 
-# Step 3. Calculate daily P load for each inflow:
+# Step 3. Check correlation between stream flow and concentrations:
 
-a) check correlation between stream flow and total P:
+a) plotting regressions of concentration against flow...
+
 ```{r}
 A<- ggplot(data=PB_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
   geom_point() + 
@@ -117,7 +110,13 @@ C<- ggplot(data=YR_P, aes(x=log10(Q_Lday),y=log10(TotP_mgL)))+
 SIfig5<-ggarrange(A,B,C, ncol=3, nrow=1) #prints plots together
 SIfig5 #Prints the figure
 ggsave(SIfig5, file="Products/SI_figures/Figure5_color.png") #save figure
+```
 
+Regressions plotted for each inflow.
+
+b) regressing concentrations against flow, given day of year...
+
+```{r} 
 ### print regression model results ###
 PB_flowP<- lm(log10(PB_P$TotP_mgL) ~ log10(PB_P$Q_Lday)*daynum, data=PB_P) #write the model using simple linear regression
 summary(PB_flowP) #print summary table for stream A
@@ -129,7 +128,11 @@ YR_flowP<- lm(log10(YR_P$TotP_mgL) ~ log10(YR_P$Q_Lday)*daynum, data=YR_P) #writ
 summary(YR_flowP) #print summary table for stream C
 ```
 
-b) estimating loads for stream A...
+Regression results printed.
+
+# Step 4. Use LOADEST to estimate daily stream P loads:
+
+a) estimating loads for stream A...
 
 ```{r}
 ### use rLOADEST package to model P load by flow ###
@@ -224,7 +227,7 @@ write.csv(YR_TotP_loads, file="Cleaned_data/YR_TotP_loads.csv")
 
 Stream C daily loads estimated.
 
-# Step 4. Merge the data:
+# Step 5. Merge the data:
 Note, R only merges two data frames at a time.
 
 ```{r}
@@ -261,7 +264,7 @@ Inflows<- rbind(Inflows, Inflows_all) #add "All" records to other dataframe
 
 Total P data files merged into one file, "Inflows."
 
-# Step 5. Save new data file.
+# Step 6. Save new data file.
 
 ```{R}
 write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data file
@@ -269,13 +272,13 @@ write.csv(Inflows, file="Cleaned_data/TotalP_inflows.csv") #save as new data fil
 
 Data file saved as "TotalP_inflows.csv" in the Cleaned_data folder.
 
-# Step 6. View and summarize the data:
+# Step 7. View and summarize the data:
 
 a) viewing daily total P loading for each inflow...
 
 ```{r}
 ### plot daily load for each inflow and total load ###
-SI_fig9<- ggplot(data=Inflows, 
+SIfig16<- ggplot(data=Inflows, 
        aes(x=daynum, 
            y=Flux)) +
   geom_line()+
@@ -288,8 +291,8 @@ SI_fig9<- ggplot(data=Inflows,
            xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
            xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
-SI_fig9 #prints out plot
-ggsave(SI_fig9, file="Products/SI_figures/Figure9.png")
+SIfig16 #prints out plot
+ggsave(SIfig16, file="Products/SI_figures/Figure16.png")
 ```
 
 Plotted Total P for day of year across the three inflows, for all years. 
@@ -297,6 +300,7 @@ Plotted Total P for day of year across the three inflows, for all years.
 b) calculating average daily total P loading during the CyanoHAB season...
 
 ```{r}
+### daily average ###
 Inflows_avg<- Inflows %>%
   filter(daynum>= 196 & daynum <=252,
          Yr>=2013 & Yr<=2018) %>% #filter for study period
