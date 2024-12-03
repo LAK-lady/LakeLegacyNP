@@ -221,3 +221,49 @@ IntP_dayavg_source
 ```
 
 Average daily P_int summarized.
+
+d) plotting internal loads by source and year...
+
+```{r}
+### select fields needed and summarize by year ###
+int_inputs<- Pint_all %>%
+  filter(daynum >= 196 & daynum <= 252) %>%
+  select(Yr, Strat_TotP_kgday, Unstr_TotP_kgday) %>%
+  group_by(Yr) %>%
+  summarize(Strat_TotP_kg=sum(Strat_TotP_kgday),
+            Unstr_TotP_kg=sum(Unstr_TotP_kgday)) %>%
+  ungroup()
+
+int_inputs_yr<- melt(int_inputs, #the table you want to reshape wide to long
+               id.vars=c("Yr"), #the column to use as unique id
+               measure.vars=c("Strat_TotP_kg","Unstr_TotP_kg"), 
+               #the columns where values will be taken
+               variable.name="Source", #label the source of P loading
+               value.name="TotP_kg") #label the value with units
+
+### rename source loads ###               
+int_inputs_yr$Source<-as.character(int_inputs_yr$Source) #tell R character data held
+int_inputs_yr$Source[int_inputs_yr$Source=="Strat_TotP_kg"] <- "stratified region"
+int_inputs_yr$Source[int_inputs_yr$Source=="Unstr_TotP_kg"] <- "unstratified region"
+
+### calculate the total annual loads ###
+int_inputs_yr<- int_inputs_yr %>%
+  group_by(Yr, Source) %>% #for each year and each source
+  summarize(TotP_kgyr=sum(TotP_kg)) %>%#sum up all the TotP_kgday
+  ungroup()
+write.csv(int_inputs_yr, file="Products/SI_figures/Figure15b_data.csv")
+
+### plot the annual internal loads by source ###
+SIfig15b<- ggplot(int_inputs_yr, aes(x=Yr, y=TotP_kgyr, 
+                             fill=Source)) + #separate sources by fill color
+  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
+  scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
+  theme_classic(base_size=12) +
+  theme(legend.position=c(0.2, 0.9)) +
+  labs(x="Year", y="Internal total P load (kg/yr)", title="b)") 
+SIfig15b #print the plot
+ggsave(SIfig15b, file="Products/SI_figures/Figure15b.png")
+```
+
+Total P load by source for each year plotted.
+
