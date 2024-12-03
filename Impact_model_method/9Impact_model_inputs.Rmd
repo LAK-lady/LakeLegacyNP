@@ -29,99 +29,81 @@ extLoad<- read.csv(file="Cleaned_data/TotalP_allext.csv")
 intLoad<- read.csv(file="Cleaned_data/TotalP_allint.csv")
 ```
 
-# Step 2. Reformat the data: 
+# Step 2. Calculate weekly loads: 
 
-a) merging the load data files...
+a) merging and filtering data...
 Note, you can only merge two files at one time.
 
 ```{r}
-### select fields needed ###
+### remove unecessary fields ###
 intLoad2<- intLoad %>%
-  select(!c(sampledate.x, sampledate.y))
+  mutate(sampledate.x=NULL, sampledate.y=NULL, X=NULL)
 
 extLoad2<- extLoad %>%
-  select(!c(sampledate, dryP_atm_kgday, wetP_atm_kgday, totP_atm_kgday))
+  select(!c(sampledate, dryP_atm_kgday, wetP_atm_kgday, totP_atm_kgday, X))
 
 ### merge load tables ###
 loads<- merge(intLoad2, extLoad2, #daily estimates
                by.x=c("Yr", "daynum"), #key fields in x data frame
                by.y=c("Yr", "daynum"), #key fields in y data frame
-               all=TRUE) #only keep records in x data frame
+               all=TRUE)
+### filter data ###
+loads<- loads %>%
+  filter(daynum>=161 & daynum <= 252) #season +- buffer
 ```
 
 Data frames merged.
 
-b) subsetting data to cyanoHAB season + 28 day lag...
-
-```{r}
-loads<- loads %>%
-  filter(daynum >= 168 & daynum <= 252) #cyanoHAB season start - 28 days
-```
-
-Data subset.
-
-# Step 3. Calculate average weekly loads:
-
-a) defining the weekly observation sequence...
+b) defining the weekly observation sequence...
 
 ```{r}
 ### define the time sequence needed ###
-week_bins<-seq(from=168, #define date start of CyanoHAB season
-                  to=252, #define date end of CyanoHAB season
-                  by=7) #creates a sequence every 1 day 
+week_bins<-seq(from=161, 
+                  to=252, #define date end of cyanoHAB season
+                  by=7) #creates a sequence every 7 days 
 week_bins
 ```
 
-Weekly observations determined.
+Weekly observation bins determined as sequence 1 to 14.
 
-b) bin observations by week...
+d) bin loads to following week...
 
 ```{r}
-### bin data frame B to frequencies ###
+### bin to frequencies using nested if/else functions ###
 loads<- loads %>%
   mutate(week_bin=
-           ifelse(daynum<week_bins[2], #if observation is <= bin 2 min
-                  week_bins[1], #yes returns bin 1
-                  ifelse(daynum>=week_bins[2]&daynum<week_bins[3],
-                         week_bins[2], 
-                         ifelse(daynum>=week_bins[3]&daynum<week_bins[4],
-                                week_bins[3], ifelse(daynum>=week_bins[4]&daynum<week_bins[5],
-                                       week_bins[4],  ifelse(daynum>=week_bins[5]&daynum<week_bins[6],
-                                       week_bins[5],  ifelse(daynum>=week_bins[6]&daynum<week_bins[7],
-                                       week_bins[6],  ifelse(daynum>=week_bins[7]&daynum<week_bins[8],
-                                       week_bins[7],  ifelse(daynum>=week_bins[8]&daynum<week_bins[9],
-                                       week_bins[8],  ifelse(daynum>=week_bins[9]&daynum<week_bins[10],
-                                       week_bins[9], ifelse(daynum>=week_bins[10]&daynum<week_bins[11],
-                                       week_bins[10], ifelse(daynum>=week_bins[11]&daynum<week_bins[12],
-                                       week_bins[11], ifelse(daynum>=week_bins[12]&daynum<week_bins[13],
-                                       week_bins[12], week_bins[13])))))))))))))
+           ifelse(daynum<=week_bins[14]&daynum>week_bins[13], #if observation is <= bin 2 min
+                  week_bins[14], #yes returns bin 1
+              ifelse(daynum<=week_bins[13]&daynum>week_bins[12],
+                         week_bins[13],
+                     ifelse(daynum<=week_bins[12]&daynum>week_bins[11],
+                                week_bins[12], ifelse(daynum<=week_bins[11]&daynum>week_bins[10],
+                                       week_bins[11],  ifelse(daynum<=week_bins[10]&daynum>week_bins[9],
+                                       week_bins[10],  ifelse(daynum<=week_bins[9]&daynum>week_bins[8],
+                                       week_bins[9],  ifelse(daynum<=week_bins[8]&daynum>week_bins[7],
+                                       week_bins[8],  ifelse(daynum<=week_bins[7]&daynum>week_bins[6],
+                                       week_bins[7],  ifelse(daynum<=week_bins[6]&daynum>week_bins[5],
+                                       week_bins[6], ifelse(daynum<=week_bins[5]&daynum>week_bins[4],
+                                       week_bins[5], ifelse(daynum<=week_bins[4]&daynum>week_bins[3],
+                                       week_bins[4], ifelse(daynum<=week_bins[3]&daynum>week_bins[2],
+                                       week_bins[3],
+                                       ifelse(daynum<=week_bins[2]&daynum>week_bins[1],
+                                              week_bins[2],
+                                              week_bins[1]))))))))))))))
 ```
 
 Observations binned. 
 
-c) calculating weekly loads...
+c) calculating average weekly loads...
 
 ```{r}
-### summarize loads by week ###
+### average loads by week ###
 all_x<- loads %>%
   group_by(Yr, week_bin) %>%
-  summarize(avg_Pint=mean(Int_TotP_kgday, na.rm=TRUE),
-            avg_Pext=mean(Pext_kgday, na.rm=TRUE),
-            avg_Pextnoother=mean(Pext_kgday_noother, na.rm=TRUE),
-            avg_epiP_mgL=mean(epi_totP_mgL, na.rm=TRUE),
-            avgTotP_HEratio=mean(TotP_HEratio, na.rm=TRUE),
-            Strat_TotP_kg=sum(Strat_TotP_kgday),
-            Unstr_TotP_kg=sum(Unstr_TotP_kgday),
-            Int_TotP_kg=sum(Int_TotP_kgday),
-            Precip_in=sum(Precipitation_in),
-            Patm_kg=sum(Patm_kgday),
-            Pstreams_kg=sum(Pstreams_kgday),
-            Pother_kg=sum(Pother_kgday),
-            Pext_kg_noother=sum(Pext_kgday_noother),
-            Pext_kg=sum(Pext_kgday)) %>%
-  ungroup() %>%
-  mutate(Pload_ratio=Int_TotP_kg/Pext_kg)#calculate the ratio of Pint/Pext
-summary(all_x%>%filter(week_bin>=196&week_bin<=252))
+  summarize(Pint=sum(Int_TotP_kgday),
+            Pext=sum(Pext_kgday),
+            avgTotP_HEratio=mean(TotP_HEratio, na.rm=TRUE)) %>% 
+  ungroup()
 ```
 
 Weekly loads calculated.
@@ -129,23 +111,24 @@ Weekly loads calculated.
 # Step 4. Add lagged values in new field:
 
 ```{r}
-all_x<- all_x %>%
-  mutate(avg_Pint_k7=lag(avg_Pint, n=1),
-         avg_Pint_k14=lag(avg_Pint, n=2),
-         avg_Pint_k21=lag(avg_Pint, n=3),
-         avg_Pint_k28=lag(avg_Pint, n=4),
+### add lagged values ###
+all_x2<- all_x %>%
+  mutate(Pint_k7=lag(Pint, n=1),
+         Pint_k14=lag(Pint, n=2),
+         Pint_k21=lag(Pint, n=3),
+         Pint_k28=lag(Pint, n=4),
+         Pext_k7=lag(Pext, n=1),
+         Pext_k14=lag(Pext, n=2),
+         Pext_k21=lag(Pext, n=3),
+         Pext_k28=lag(Pext, n=4),
          avgTotP_HEratio_k7=lag(avgTotP_HEratio, n=1),
          avgTotP_HEratio_k14=lag(avgTotP_HEratio, n=2),
          avgTotP_HEratio_k21=lag(avgTotP_HEratio, n=3),
-         avgTotP_HEratio_k28=lag(avgTotP_HEratio, n=4),
-         avg_Pext_k7=lag(avg_Pext, n=1),
-         avg_Pext_k14=lag(avg_Pext, n=2),
-         avg_Pext_k21=lag(avg_Pext, n=3),
-         avg_Pext_k28=lag(avg_Pext, n=4),
-         avg_Pextnoother_k7=lag(avg_Pextnoother, n=1),
-         avg_Pextnoother_k14=lag(avg_Pextnoother, n=2),
-         avg_Pextnoother_k21=lag(avg_Pextnoother, n=3),
-         avg_Pextnoother_k28=lag(avg_Pextnoother, n=4))
+         avgTotP_HEratio_k28=lag(avgTotP_HEratio, n=4),) %>% 
+  ungroup()
+
+### filter out NAs ###
+all_x2<- all_x2 %>% filter(week_bin>= 196 & week_bin <= 252)
 ```
 
 Lagged loads added.
@@ -153,9 +136,9 @@ Lagged loads added.
 # Step 5. Merge the response and predictor variables:
 
 ```{r}
-inputs_weekly<- merge(all_x, cyanoHAB,
+inputs_weekly<- merge(all_x2, cyanoHAB,
                  by.x=c("Yr", "week_bin"),
-                 by.y=c("Yr", "week_bin"), all.y=TRUE)
+                 by.y=c("Yr", "daynum_bin"), all.y=TRUE)
 ```
 
 Data files merged.
@@ -169,53 +152,40 @@ write.csv(inputs_weekly, file="Cleaned_data/Impact_model_weekly.csv")
 
 # Step 5. View and summarize the data:
 
-a) plotting internal loads by year...
+a) plotting precipitation for season by year...
 
 ```{r}
-### select fields needed ###
-int_intputs_yr<- inputs_weekly %>%
-  select(Yr, week_bin, Strat_TotP_kg, Unstr_TotP_kg) %>%
-  melt(int_intputs_yr, #the table you want to reshape wide to long
-               id.vars=c("Yr", "week_bin"), #the column to use as unique id
-               measure.vars=c("Strat_TotP_kg","Unstr_TotP_kg"), 
-               #the columns where values will be taken
-               variable.name="Source", #label the source of P loading
-               value.name="TotP_kg") #label the value with units
-
-### rename source loads ###               
-int_intputs_yr$Source<-as.character(int_intputs_yr$Source) #tell R character data held
-int_intputs_yr$Source[int_intputs_yr$Source=="Strat_TotP_kg"] <- "stratified region"
-int_intputs_yr$Source[int_intputs_yr$Source=="Unstr_TotP_kg"] <- "unstratified region"
-
-### calculate the total annual loads ###
-int_intputs_yr<- int_intputs_yr %>%
-  group_by(Yr, Source) %>% #for each year and each source
-  summarize(TotP_kgyr=sum(TotP_kg)) %>%#sum up all the TotP_kgday
+### summarize precipitation by year ###
+fig4a_data<- loads %>%
+  filter(daynum>=196 & daynum<=252) %>% #filter for cyanoHAB season
+  select(Yr, Precipitation_in) %>%
+  group_by(Yr) %>%
+  summarize(Precip_inyr=sum(Precipitation_in)) %>%
   ungroup()
+write.csv(fig4a_data, file="Products/Figure4a_data.csv")
 
-### plot the annual internal loads by source ###
-SI_fig18<- ggplot(int_intputs_yr, aes(x=Yr, y=TotP_kgyr, 
-                             fill=Source)) + #separate sources by fill color
-  geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
-  scale_fill_manual(values=c("grey", "black")) + #entrain = grey, sed=black
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading (kg/yr)") 
-SI_fig18 #print the plot
-ggsave(SI_fig18, file="Products/SI_figures/Figure18.png")
+### plot precipitation per year for cyanoHAB season ###
+fig4a<- ggplot(data=fig4a_data, aes(x=as.character(Yr), y=Precip_inyr)) + 
+  geom_bar(stat="identity", color="black", fill="grey")+ 
+  theme_classic()+
+  labs(x=NULL, y="Total Precipitation (in)", title="a)")
+fig4a
 ```
 
-Total P load by source for each year plotted.
+Precipitation plotted.
 
-b) plotting P loads against epi P concentration...
+b) plotting P loads for season by source and year...
 
 ```{r}
-### create data table for plots ###
-fig4_data<- inputs_weekly %>%
-  select(Yr, week_bin, avg_epiP_mgL, Int_TotP_kg, Pext_kg)
-
-fig4a<- fig4_data %>%
-  select(Yr, Int_TotP_kg, Pext_kg) %>%
-  melt(fig4a, #the table you want to reshape wide to long
+### sumarize loads by year ###
+fig4b_data<- loads %>%
+  filter(daynum>= 196 & daynum <= 252) %>% #filter for cyanoHAB season
+  select(Yr, daynum, Int_TotP_kgday, Pext_kgday) %>%
+  group_by(Yr) %>% # summarize by year
+  summarize(Int_TotP_kg=sum(Int_TotP_kgday), 
+            Pext_kg=sum(Pext_kgday)) %>%
+  ungroup()
+fig4b_data<- melt(fig4b_data, #the table you want to reshape wide to long
                id.vars=c("Yr"), #the column to use as unique id
                measure.vars=c("Int_TotP_kg","Pext_kg"), 
                #the columns where values will be taken
@@ -223,31 +193,47 @@ fig4a<- fig4_data %>%
                value.name="TotP_kg") #label the value with units
 
 ### rename source loads ###               
-fig4a$Source<-as.character(fig4a$Source) #tell R character data held
-fig4a$Source[fig4a$Source=="Int_TotP_kg"] <- "internal P load"
-fig4a$Source[fig4a$Source=="Pext_kg"] <- "external P load"
+fig4b_data$Source<-as.character(fig4b_data$Source) #tell R character data held
+fig4b_data$Source[fig4b_data$Source=="Int_TotP_kg"] <- "internal P load"
+fig4b_data$Source[fig4b_data$Source=="Pext_kg"] <- "external P load"
+write.csv(fig4b_data, file="Products/Figure4b_data.csv")
 
-### calculate the total annual loads ###
-inputs_yr<- fig4a %>%
-  group_by(Yr, Source) %>% #for each year and each source
-  summarize(TotP_kgyr=sum(TotP_kg)) %>%#sum up all the TotP_kgday
-  ungroup()
-
-### create top plot ###
-fig4a<- ggplot(data=inputs_yr, aes(x=as.character(Yr), y=TotP_kgyr, fill=Source)) + #separate sources by fill color
+### plot loads by year ###
+fig4b<- ggplot(data=fig4b_data, aes(x=as.character(Yr), y=TotP_kg, fill=Source)) + #separate sources by fill color
   geom_bar(position="stack", stat="identity", color="black") + #stacked bar graph
   scale_fill_manual(values=c("black", "grey")) + #int=grey, ext=black
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P load (kg/yr)", title="a)") +
-  theme(legend.position=c(0.15,0.90))
-fig4a
-
-fig4b<- ggplot(data=fig4_data, aes(y=avg_epiP_mgL, x=as.character(Yr))) +
-  geom_boxplot() + 
-  labs(x="Year", y="Epilimnion Total P (mg/L)", title="b)") +
-  theme_classic() 
+  theme_classic(base_size=10) +
+  labs(x=NULL, y="Total P load (kg/yr)", title="b)") +
+  theme(legend.position=c(0.15,0.9))
 fig4b
-fig4<- ggarrange(fig4a, fig4b, nrow=2, ncol=1)
+```
+
+Loads plotted.
+
+c) plotting epilimnion total P concentrations...
+
+```{r}
+### summarize epi P concentrations by year ###
+fig4c_data<- loads %>%
+  filter(daynum>= 196 & daynum <= 252) %>% #filter for cyanoHAB season
+  select(Yr, daynum, epi_totP_mgL)
+write.csv(fig4c_data, file="Products/Figure4c_data.csv")
+
+### plot epi P for season ###
+fig4c<- ggplot(data=fig4c_data, aes(y=epi_totP_mgL, x=as.character(Yr))) +
+  geom_boxplot() + 
+  labs(x="Year", y="Epilimnion Total P (mg/L)", title="c)") +
+  theme_classic() 
+fig4c
+```
+
+Epi P plotted.
+
+c) plotting all together and saving data...
+
+```{r}
+### plot all together ###
+fig4<- ggarrange(fig4a, fig4b, fig4c, nrow=3, ncol=1)
 fig4 #print the plot
 ggsave(fig4, file="Products/Figure4.png")
 ```
@@ -255,10 +241,10 @@ ggsave(fig4, file="Products/Figure4.png")
 # Step 6. Compare average annual P load between Pint and Pstreams...
 
 ```{r}
-Pload_comp<- inputs_weekly %>%
+Pload_comp<- loads %>%
   group_by(Yr) %>%
-  summarize(Pstreams_kgyr=sum(Pstreams_kg),
-            Int_TotP_kgyr=sum(Int_TotP_kg))
+  summarize(Pstreams_kgyr=sum(Pstreams_kgday),
+            Int_TotP_kgyr=sum(Int_TotP_kgday))
 mean(Pload_comp$Int_TotP_kgyr/Pload_comp$Pstreams_kgyr)
 
 Pload_comp_dry<- Pload_comp %>%
