@@ -57,7 +57,7 @@ precip2<- precip %>%
 
 Data formated.
 
-c) address missing values...
+c) interpolate missing values using linear regression...
 
 ```{r}
 precip2<- precip2 %>%
@@ -67,7 +67,7 @@ summary(precip2$Precipitation_in) #check for NAs
 
 Missing values interpolated
 
-# Step 3. Calculate the daily P loads:
+# Step 3. Calculate the daily atmospheric P loads:
 
 a) defining conversion coefficients...
 
@@ -87,7 +87,7 @@ P_atm_wet = 0.032 #mg/L rate of P wet deposition (Soranno et al 1997)
 
 Conversion coefficients defined.
 
-b) transforming and filtering the data...
+b) calculating loads...
 
 ```{r}
 atmP<- precip2 %>%
@@ -98,7 +98,7 @@ atmP<- precip2 %>%
 summary(atmP) #check for NAs
 ```
 
-Total P from atmospheric deposition transformed and filtered.
+Total P from atmospheric deposition calculated.
 
 # Step 3. Save estimated P atm deposition as separate data file:
 
@@ -106,7 +106,8 @@ Total P from atmospheric deposition transformed and filtered.
 write.csv(atmP, file="Cleaned_data/TotalP_atm.csv")
 ```
 
-New file saved as "TotalP_atm.csv" in the Cleaned_data folder.
+New file saved.
+
 # Step 4. View and summarize the data:
 
 a) calculating average daily total P loading from atm deposit during CyanoHAB season...
@@ -123,7 +124,7 @@ precip_dayavg<- atmP %>%
 precip_dayavg
 ```
 
-b) calculating average annual total P loading from atm deposit during CyanoHAB season...
+b) calculating seasonal total P loading from atm deposit...
 
 ```{r}
 precip_sumtot<- atmP %>%
@@ -140,15 +141,4 @@ sum_table<-precip_sumtot %>%
 sum_table
 ```
 
-c) plotting P_atm by year (cyanoHAB season only)...
-
-```{r}
-SI_fig11<- ggplot(precip_sumtot, aes(x=as.factor(Yr), y=sum_TP_kgyr)) +
-  geom_col() +
-  theme_classic(base_size=12) +
-  labs(x="Year", y="Total P loading from atmospheric deposition (kg/yr)")
-SI_fig11
-ggsave("Products/SI_figures/Figure11.png")
-```
-
-Total P load from atm deposit plotted by year for CyanoHAB season.
+P_atm summarized.
