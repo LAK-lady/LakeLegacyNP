@@ -88,7 +88,7 @@ a) plotting P concentrations across depth and time...
 
 ```{r}
 ### plot P concentration across both depth and time ###
-SI_fig13<- ggplot(data=subset(water_P2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
+SIfig10<- ggplot(data=subset(water_P2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
        aes(x=daynum, #sampled date as x-axis
            y=Depth_m, 
            color=TotP_mgL)) + #and data points colored by temperature
@@ -101,8 +101,8 @@ SI_fig13<- ggplot(data=subset(water_P2, daynum>= 189 & daynum <=259), #create li
   geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
   theme_classic() +
   labs(x="Day of Year", y="Depth (m)") 
-SI_fig13
-ggsave(SI_fig13, file="Products/SI_figures/Figure13_color.png")
+SIfig10
+ggsave(SIfig10, file="Products/SI_figures/Figure10_color.png")
 ```
 
 Total P concentrations plotted across depth and date.
@@ -111,7 +111,7 @@ b) plotting water temperature across depth and date...
 
 ```{r}
 ### plot water temp across depth (y-axis) and date (x-axis) ###
-SI_fig15<- ggplot(data=subset(watertemp2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
+SIfig9<- ggplot(data=subset(watertemp2, daynum>= 189 & daynum <=259), #create limno plot with depth inverse on y-axis
        aes(x=daynum, #sampled date as x-axis
            y=Depth_m, 
            color=watertemp_C)) + #and data points colored by temperature
@@ -124,8 +124,8 @@ SI_fig15<- ggplot(data=subset(watertemp2, daynum>= 189 & daynum <=259), #create 
   geom_hline(yintercept=8, lty="dashed") + #add line for bottom of epi
   theme_classic() +
   labs(x="Day of Year", y="Depth (m)") 
-SI_fig15
-ggsave(SI_fig15, file="Products/SI_figures/Figure15_color.png")
+SIfig9
+ggsave(SIfig9, file="Products/SI_figures/Figure9_color.png")
 ```
 
 Water temperature plotted across depth and date.
@@ -167,7 +167,7 @@ P_ratio_long<- rbind(Epi_P, Hypo_P) %>%
          daynum=as.integer(format(sampledate, format="%j"))) #add day number
 
 ### plot data ###
-SI_fig16<- ggplot(data=subset(P_ratio_long, daynum>= 189 & daynum <=259), aes(x=daynum, color=layer))+ #filter for CyanoHAB season +- 7 days),  #plot thermocline depth across date
+SIfig18<- ggplot(data=subset(P_ratio_long, daynum>= 189 & daynum <=259), aes(x=daynum, color=layer))+ #filter for CyanoHAB season +- 7 days),  #plot thermocline depth across date
    geom_line(aes(y=TotP_mgL), lty="solid") + #
    geom_point(aes(y=TotP_mgL), shape=1) + #add lines between points
    geom_line(aes(y=DisP_mgL), lty="dashed") + #
@@ -178,9 +178,10 @@ SI_fig16<- ggplot(data=subset(P_ratio_long, daynum>= 189 & daynum <=259), aes(x=
    scale_color_manual(values=c("blue","darkred")) +
   scale_shape_manual(name="P form", labels=c("Total P", "Dissolved P")) +
    theme_classic() +
+  theme(legend.position="none") +
    labs(x="Date", y="P concentration (mg/L)", color="Layer")#add axis labels
-SI_fig16
-ggsave(SI_fig16, file="Products/SI_figures/Figure16_color.png")
+SIfig18
+ggsave(SIfig18, file="Products/SI_figures/Figure18_color.png")
 ```
 
 Data plotted.
@@ -247,6 +248,8 @@ TotP_interp_depth <- crossing( #creates a tibble that
 
 ### save as data frame ###
 TotP_interp_depth<- as.data.frame(TotP_interp_depth)
+write.csv(TotP_interp_depth,
+          file="Products/SI_figures/Figure12_data.csv")
 ```
 
 Total P interpolated across depth
@@ -255,7 +258,7 @@ b) plotting interpolated P across depth..
 
 ```{r}
 ### plot interpolated water P data ###
-SI_fig14<- ggplot(data=subset(TotP_interp_depth, daynum>=196 & daynum<=252), #create limno plot with depth inverse on y-axis
+SIfig12<- ggplot(data=subset(TotP_interp_depth, daynum>=196 & daynum<=252), #create limno plot with depth inverse on y-axis
        aes(x=as.integer(format(date, "%j")), #sample date as x-axis
            y=Depth_m, #depth as y-axis
            color=TotP_mgL)) + #and data points colored by temperature
@@ -268,8 +271,8 @@ SI_fig14<- ggplot(data=subset(TotP_interp_depth, daynum>=196 & daynum<=252), #cr
   geom_hline(yintercept=8, lty="dashed") + #add in horizontal line for epi max
   theme_classic() +
   labs(x="Date", y="Depth (m)")  #add axis labels
-SI_fig14 #print plot
-ggsave(SI_fig14, file="Products/SI_figures/Figure14_color.png") #save plot
+SIfig12 #print plot
+ggsave(SIfig12, file="Products/SI_figures/Figure12_color.png") #save plot
 ```
 
 P concentration interpolated across depth.
@@ -291,17 +294,18 @@ wtr<- wtr %>%
 
 ### determine the thermocline depth ###
 t.d<- ts.thermo.depth(wtr, na.rm=TRUE) #calculates thermocline depth as time series
+write.csv(t.d, file="Products/SI_figures/Figure11_data.csv")
 
 ### plot the thermocline depth by date ###
-SI_fig17<- ggplot(data=t.d, aes(x=datetime, 
+SIfig11<- ggplot(data=t.d, aes(x=datetime, 
                      y=thermo.depth))+ #plot thermocline depth across date
   geom_point(shape=1) + #points as open circles
   geom_line() + #add lines between points
   scale_y_reverse() + #reverse the y scale for limno plot
   theme_classic() +
   labs(x="Date", y="Thermocline depth (m)")#add axis labels
-SI_fig17
-ggsave(SI_fig17, file="Products/SI_figures/Figure17.png")
+SIfig11
+ggsave(SIfig11, file="Products/SI_figures/Figure11.png")
 
 ### seperate data by year then assign thermocline depth for each observation (t) ###
 t.d2<- t.d %>% #make new table
