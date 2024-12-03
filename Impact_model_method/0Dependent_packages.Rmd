@@ -1,0 +1,45 @@
+---
+title: "0Dependent_packages"
+author: "Lauren Knose"
+date: "2024-11-26"
+output: html_document
+---
+
+The purpose of this program is to install dependent packages used in the sequential programs to the user's R version. The beginning of each 
+
+The list of dependent packages are as follows: 
+- dplyr 
+- reshape2
+- data.table
+- tidyverse
+- zoo
+- car
+- ggplot2 
+- ggpubr
+- ggpattern
+- plotly
+- remotes 
+- rloadest
+- rLakeAnalyzer
+
+The following code will install the dependent packages to user's machine from the CRAN.
+
+```{r}
+install.packages(c("dplyr", "reshape2", "data.table", "tidyverse", "zoo","car", "ggplot2", "ggpubr", "ggpattern", "plotly", "rLakeAnalyzer"))
+```
+
+Unless errors reported, all packages are installed. 
+
+The following code will install the dependent packages to user's machine from the remote repository. 
+
+```{r}
+install.packages("remotes")
+remotes::install_github("USGS-R/smwrData") #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrBase") #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrGraphs") #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrStats") #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrQW") #use if 1st time using rloadest
+remotes::install_github("USGS-R/rloadest") #use if 1st time using rloadest
+```
+
+Unless errors reported, all dependent packages are installed.
