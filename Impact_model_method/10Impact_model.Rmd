@@ -18,6 +18,7 @@ library(dplyr) #needed for reshaping/reformating data
 library(reshape2) #needed for reshaping data frames
 library(ggplot2) #needed for plotting and saving plots
 library(car) #needed to get model VIFs
+library(ggpubr)
 library(ggpattern) #needed to add patterns to barplots
 ```
 
@@ -34,66 +35,77 @@ Data loaded.
 
 # Step 2. Define predictors (transformations and lags):
 
-a) checking for normality...
+a) defining predictor lags and transformation...
 
 ```{r}
-par(mfrow=c(2,5))
+### checking linear correlation with response, vary lags as needed ###
+SIfig13a<- ggscatter(data=weekly,
+          x="CD_cellsmL_k7",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="CD_cellsmL_k7", ylab="CD_cellsmL")
+
+SIfig13b<-ggscatter(data=weekly,
+          x="Pint_k21",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="Pint_k21", ylab="CD_cellsmL")+ xscale("log10", .format=TRUE)
+
+SIfig13c<- ggscatter(data=weekly,
+          x="Pext_k28",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="Pext_k28", ylab="CD_cellsmL")+ xscale("log10", .format=TRUE)
+
+SIfig13<- ggarrange(SIfig13a, SIfig13b, SIfig13c, nrow=3, ncol=1)
+SIfig13
+write.csv(weekly, file="Products/SI_figures/Figure13_data.csv")
+ggsave(SIfig13, file="Products/SI_figures/Figure13.png")
+```
+
+Predictor lags defined.
+
+b) checking for normality...
+
+```{r}
+par(mfrow=c(2,4))
 hist(weekly$Chla_ugL, breaks=18,#histograph of Chl-a
      main="non-transformed",
      xlab="Chl-a") 
 hist(weekly$CD_cellsmL, breaks=18,#histograph of CD
      main="non-transformed",
      xlab="CD") 
-hist(weekly$Pext, breaks=18,#histogrpah of P_ext
+hist(weekly$Pext_k28, breaks=18,#histogrpah of P_ext
      main="non-transformed",
-     xlab="P_ext") 
-hist(weekly$Pint, breaks=18,#histograph of P_int
+     xlab="P_ext_k28") 
+hist(weekly$Pint_k21, breaks=18,#histograph of P_int
      main="non-transformed",
-     xlab="P_int") 
-hist(weekly$avgTotP_HEratio, breaks=18,#histograph of P_hypo_epi
-     main="non-transformed",
-     xlab="P_hypo:P_epi") 
+     xlab="P_int_k21") 
 hist(log10(weekly$Chla_ugL), breaks=18,#histograph of log10(Chl-a)
      main="log-transformed",
      xlab="Chl-a") 
 hist(log10(weekly$CD_cellsmL), breaks=18,#histograph of log10(CD)
      main="log-transformed",
      xlab="CD") 
-hist(log10(weekly$Pext), breaks=18,#histograph of log10(P_ext)
+hist(log10(weekly$Pext_k28), breaks=18,#histograph of log10(P_ext)
      main="log-transformed",
-     xlab="P_ext") 
-hist(log10(weekly$Pint), breaks=18,#histograph of log10(P_int)
+     xlab="P_ext_k28") 
+hist(log10(weekly$Pint_k21), breaks=18,#histograph of log10(P_int)
      main="log-transformed",
-     xlab="P_int") 
-hist(log10(weekly$avgTotP_HEratio), breaks=18,#histograph of log10(P_hypo:epi)
-     main="log-transformed",
-     xlab="P_hypo:P_epi") 
+     xlab="P_int_k21") 
 par(mfrow=c(1,1)) #return to default
-#save manually
+#save manually as SI-fig14
 ```
 
 Comparison of non-transformed and transformed data graphed.
 
-b) checking lags...
-
-```{r}
-### vary lags ###
-test_k<- glm(formula=CD_cellsmL~log10(Pint_k28), data=weekly) #data frame
-summary(lm(test_k))
-```
-
-Predictor lags defined.
-
 # Step 3. Run regression:
 
-a) running model: CD_t ~ CD_t-k + log10(P_ext,t-k) + log10(P_int, t-k) + error
+a) running model: CD_t ~ log10(P_int, t-k) + log10(P_ext,t-k) + error
 
 ```{r}
-### remove outliers as needed ###
-#inputs<- weekly[-c(22, 26),]
+### remove outliers if necessary ###
+weekly<- weekly[-c(18),] #outlier identified in diagnostics
 
 ### define the model ###
-regka_CD<- glm(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=weekly)
+regka_CD<- glm(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=weekly)
 
 ### print model AIC ###
 summary(regka_CD)
@@ -107,21 +119,19 @@ Model defined.
 b) running model diagnostics...
 
 ```{r}
+### print model diagnostics ###
+par(mfrow=c(3,2), mar=c(2,2,2,2))
+plot(regka_CD)
+
 ### plot expected vs observed ###
 plot(x=predict(regka_CD), y=weekly$CD_cellsmL, 
-    xlab="Predicted Values", ylab="Observed Values")
+    xlab="Predicted Values", ylab="Observed Values", main="Predicted vs Observed")
 abline(a=0,b=1) #add 1:1 line to plot
+# save as SIfig14
+par(mfrow=c(1,1))
 
 ### print model VIFs ###
 vif(regka_CD) #prints the VIFs 
-
-### print model diagnostics ###
-png(file="Products/SI_figures/Figure14_color.png", width=750, height=500) #open png file
-layout(matrix(c(1,2,3,4),2,2)) #layout 4 graphs/page
-SIfig14<-plot(regka_CD) #creates plot
-SIfig14
-dev.off() #closes the file
-par(mfrow=c(1,1))
 ```
 
 Model diagnostics complete.
@@ -132,42 +142,42 @@ a) calculating partial squares for each year...
 
 ```{r}
 ### define the model ###
-YRregk_CD_2013<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2013)) #subset data by year
+YRregk_CD_2013<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2013)) #subset data by year
             
 ### print the Sum of Squares as table ###
 SS_2013<- summary(YRregk_CD_2013)
 impact2013<- data.frame(SS_2013[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 ### define the model ###
-YRregk_CD_2014<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2014)) #subset data by year
+YRregk_CD_2014<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2014)) #subset data by year
 
 ### print the Sum of Squares as table ###
 SS_2014<- summary(YRregk_CD_2014)#prints the sum of squares for the regression 
 impact2014<- data.frame(SS_2014[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 ### define the model ###
-YRregk_CD_2015<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2015)) #subset data by year
+YRregk_CD_2015<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2015)) #subset data by year
 
 ### print the Sum of Squares as table ###
 SS_2015<- summary(YRregk_CD_2015)#prints the sum of squares for the regression 
 impact2015<- data.frame(SS_2015[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 ### define the model ###
-YRregk_CD_2016<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2016)) #subset data by year
+YRregk_CD_2016<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2016)) #subset data by year
 
 ### print the Sum of Squares as table ###
 SS_2016<- summary(YRregk_CD_2016)#prints the sum of squares for the regression 
 impact2016<- data.frame(SS_2016[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 ### define the model ###
-YRregk_CD_2017<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28),  data=subset(weekly, Yr==2017)) #subset data by year
+YRregk_CD_2017<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2017)) #subset data by year
 
 ### print the Sum of Squares as table ###
 SS_2017<- summary(YRregk_CD_2017)#prints the sum of squares for the regression 
 impact2017<- data.frame(SS_2017[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 ### define the model ###
-YRregk_CD_2018<- aov(formula=CD_cellsmL~log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2018)) #subset data by year
+YRregk_CD_2018<- aov(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=subset(weekly, Yr==2018)) #subset data by year
 
 ### print the Sum of Squares as table ###
 SS_2018<- summary(YRregk_CD_2018)#prints the sum of squares for the regression 
@@ -176,28 +186,121 @@ impact2018<- data.frame(SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 Partial Sum Squares calculated for each year.
 
-b) merging the Sum Squares tables into one data file...
+c) combining the SSR into one data file...
 
 ```{r}
 ### merging the Sum Squares tables ###
 Model_output_CD<- cbind(impact2013, impact2014, impact2015, impact2016, impact2017, impact2018) #combines all tables together
-Model_output_CD$Sum_Sq_part<- c("Internal load","External load",  "Residual") #add column with predictor name
+Model_output_CD$Sum_Sq_part<- c("Seed Stock", "Internal load","External load", "Residual") #add column with predictor name
 colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part") # renames columns with year for sum squares
+write.csv(Model_output_CD, file="Products/Figure3_data.csv") #save figure data file
 
-### save SS table as new data file ###
-write.csv(Model_output_CD, file="Products/Figure3_data.csv")
-
-### print SS table as bar plot ###
+### print SS table as bar plot for baseline ###
 CD_table<- melt(Model_output_CD, id.vars="Sum_Sq_part", variable.name = "Year", value.name = "PSS") %>%
-  mutate(Sum_Sq_part=factor(Sum_Sq_part, levels=c("Residual", "External load",  "Internal load"), ordered=TRUE))
+  mutate(Sum_Sq_part=factor(Sum_Sq_part, 
+                            levels=c("Residual", "Seed Stock", "External load",  "Internal load"), 
+                            ordered=TRUE))
+```
+
+SS combined.
+
+d) plotting the SS...
+
+```{r}
+### plot the output ###
 fig3a<- ggplot(data=CD_table, aes(y=PSS, x=Year, pattern=Sum_Sq_part, fill=Sum_Sq_part)) +
   geom_bar_pattern(position="fill", stat="identity") +
-  labs(y="Sum of Squares for Regression", pattern="Predictor",title="a) Baseline") +
+  labs(y="Sum of Squares for Regression", pattern="Predictor",title="a) Variance by Year") +
   guides(fill="none") +
+  theme_classic()+
   theme(legend.position="bottom")+
-  scale_pattern_manual(values=c("stripe","wave","circle"))
+  scale_pattern_manual(values=c('crosshatch','stripe','wave','circle'))
 fig3a
-ggsave(fig3a, file="Products/Figure3a_color.png")
 ```
 
 Yearly source-attributed impact outputted.
+
+# Step 5. Predict the change in cyanoHAB severity:
+
+a) creating new data based on counterfactuals and model predicted responses...
+
+```{r}
+### define counterfactual scenario 1 ###
+CF1<- data.frame(Pext_k28=weekly$Pext_CF1_k28,
+                 Pint_k21=weekly$Pint_k21,
+                 CD_cellsmL_k7=weekly$CD_cellsmL_k7)
+CF1$predicted<- predict(regka_CD, newdata=CF1, interval='confidence')
+
+### define counterfactual scenario 2 ###
+CF2<- data.frame(Pext_k28=(weekly$Pext_k28*0.1),
+                 Pint_k21=weekly$Pint_k21,
+                 CD_cellsmL_k7=weekly$CD_cellsmL_k7)
+CF2$predicted<- predict(regka_CD, newdata=CF2, interval='confidence')
+
+### define counterfactual scenario 3 ###
+CF3<- data.frame(Pext_k28=weekly$Pext_k28,
+                 Pint_k21=(weekly$Pint_k21*0.1),
+                 CD_cellsmL_k7=weekly$CD_cellsmL_k7)
+CF3$predicted<- predict(regka_CD, newdata=CF3, interval='confidence')
+```
+
+Counterfactuals modeled.
+
+b) merging new data...
+
+```{r}
+### select key fields ###
+comp_df<- weekly %>% select(Yr, daynum, CD_cellsmL)
+CF1<- CF1 %>% select(predicted)
+CF2<- CF2 %>% select(predicted)
+CF3<- CF3 %>% select(predicted)
+
+### merge data frames ###
+Severity<- comp_df %>%
+  rename(Baseline=CD_cellsmL) %>%
+  mutate(CF1=CF1$predicted,
+         CF2=CF2$predicted,
+         CF3=CF3$predicted)
+
+### transform wide to long format ##
+Severity_long<- melt(Severity, id.vars=c("Yr","daynum"), variable.name="Scenario", value.name="CD_cellsmL")
+```
+
+New data merged.
+
+c) plotting results...
+
+```{r}
+### plot time series ###
+#ggplot(data=Severity_long, aes(x=daynum, y=CD_cellsmL/10000, group=Scenario)) +
+#  facet_wrap(~Yr)+
+#  geom_point(aes(shape=Scenario, color=Scenario))+
+#  geom_line(aes(linetype=Scenario, color=Scenario))+
+#  scale_linetype_manual(values=c("solid","dashed","twodash","dotted"))+
+#  scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
+#  labs(x="Day", y=NULL, title="b) CyanoHAB severity (10^4 cells/mL)") +
+#  theme_classic() +
+#  theme(legend.position="bottom")
+
+### alternatively a boxplot series ###
+comparisons<- list(c("Baseline", "CF1"), c("Baseline", "CF2"), c("Baseline", "CF3"))
+fig3b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/10000, group=Scenario)) +
+  geom_boxplot(aes(col=Scenario))+
+  scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
+  labs(y="x10^4 cells/mL", title="b) Cyanobacteria Cell Density") +
+  theme_classic() +
+  theme(legend.position="bottom") +
+  stat_compare_means(comparisons=comparisons, method="t.test", label="p.signif")
+fig3b
+write.csv(Severity_long, file="Products/Figure3b_data.csv")
+```
+
+d) combining figures...
+
+```{r}
+fig3<- ggarrange(fig3a, fig3b, nrow=1, ncol=2)
+fig3
+ggsave(fig3, file="Products/Figure3_color.png")
+```
+
+Figures combined
