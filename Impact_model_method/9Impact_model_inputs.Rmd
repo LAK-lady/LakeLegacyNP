@@ -47,9 +47,6 @@ loads<- merge(intLoad2, extLoad2, #daily estimates
                by.x=c("Yr", "daynum"), #key fields in x data frame
                by.y=c("Yr", "daynum"), #key fields in y data frame
                all=TRUE)
-### filter data ###
-loads<- loads %>%
-  filter(daynum>=161 & daynum <= 252) #season +- buffer
 ```
 
 Data frames merged.
@@ -58,7 +55,7 @@ b) defining the weekly observation sequence...
 
 ```{r}
 ### define the time sequence needed ###
-week_bins<-seq(from=161, 
+week_bins<-seq(from=196, 
                   to=252, #define date end of cyanoHAB season
                   by=7) #creates a sequence every 7 days 
 week_bins
@@ -66,78 +63,43 @@ week_bins
 
 Weekly observation bins determined as sequence 1 to 14.
 
-d) bin loads to following week...
+c) calculating total loads for each lag...
 
 ```{r}
-### bin to frequencies using nested if/else functions ###
-loads<- loads %>%
-  mutate(week_bin=
-           ifelse(daynum<=week_bins[14]&daynum>week_bins[13], #if observation is <= bin 2 min
-                  week_bins[14], #yes returns bin 1
-              ifelse(daynum<=week_bins[13]&daynum>week_bins[12],
-                         week_bins[13],
-                     ifelse(daynum<=week_bins[12]&daynum>week_bins[11],
-                                week_bins[12], ifelse(daynum<=week_bins[11]&daynum>week_bins[10],
-                                       week_bins[11],  ifelse(daynum<=week_bins[10]&daynum>week_bins[9],
-                                       week_bins[10],  ifelse(daynum<=week_bins[9]&daynum>week_bins[8],
-                                       week_bins[9],  ifelse(daynum<=week_bins[8]&daynum>week_bins[7],
-                                       week_bins[8],  ifelse(daynum<=week_bins[7]&daynum>week_bins[6],
-                                       week_bins[7],  ifelse(daynum<=week_bins[6]&daynum>week_bins[5],
-                                       week_bins[6], ifelse(daynum<=week_bins[5]&daynum>week_bins[4],
-                                       week_bins[5], ifelse(daynum<=week_bins[4]&daynum>week_bins[3],
-                                       week_bins[4], ifelse(daynum<=week_bins[3]&daynum>week_bins[2],
-                                       week_bins[3],
-                                       ifelse(daynum<=week_bins[2]&daynum>week_bins[1],
-                                              week_bins[2],
-                                              week_bins[1]))))))))))))))
-```
-
-Observations binned. 
-
-c) calculating average weekly loads...
-
-```{r}
-### average loads by week ###
-all_x<- loads %>%
-  group_by(Yr, week_bin) %>%
-  summarize(Pint=sum(Int_TotP_kgday),
-            Pext=sum(Pext_kgday),
-            avgTotP_HEratio=mean(TotP_HEratio, na.rm=TRUE)) %>% 
-  ungroup()
+all_loads<- loads %>%
+  select(Yr, daynum, Int_TotP_kgday, TotP_HEratio, Pext_kgday, Pext_kgday_CF1) %>%
+  group_by(Yr) %>%
+  mutate(Pext=rollapply(Pext_kgday, width=7, align="right", FUN=function(x) mean(x[-1], na.rm=TRUE),fill=NA, partial=TRUE),
+         Pext_k7=lag(Pext, n=7),
+         Pext_k14=lag(Pext, n=14),
+         Pext_k21=lag(Pext, n=21),
+         Pext_k28=lag(Pext, n=28),
+         Pint=rollapply(Int_TotP_kgday, width=7, align="right", FUN=function(x) mean(x[-1], na.rm=TRUE),fill=NA, partial=TRUE),
+         Pint_k7=lag(Pint, n=7),
+         Pint_k14=lag(Pint, n=14),
+         Pint_k21=lag(Pint, n=21),
+         Pint_k28=lag(Pint, n=28),
+         Pratio=TotP_HEratio,
+         Pratio_k7=lag(Pratio, n=7),
+         Pratio_k14=lag(Pratio, n=14),
+         Pratio_k21=lag(Pratio, n=21),
+         Pratio_k28=lag(Pratio, n=28),
+         Pext_CF1=rollapply(Pext_kgday_CF1, width=7, align="right", FUN=function(x) mean(x[-1], na.rm=TRUE),fill=NA, partial=TRUE),
+         Pext_CF1_k7=lag(Pext, n=7),
+         Pext_CF1_k14=lag(Pext, n=14),
+         Pext_CF1_k21=lag(Pext, n=21),
+         Pext_CF1_k28=lag(Pext, n=28)) %>%
+  ungroup() %>%
+  filter(daynum %in% week_bins)
 ```
 
 Weekly loads calculated.
 
-# Step 4. Add lagged values in new field:
+# Step 3. Merge the response and predictor variables:
 
 ```{r}
-### add lagged values ###
-all_x2<- all_x %>%
-  mutate(Pint_k7=lag(Pint, n=1),
-         Pint_k14=lag(Pint, n=2),
-         Pint_k21=lag(Pint, n=3),
-         Pint_k28=lag(Pint, n=4),
-         Pext_k7=lag(Pext, n=1),
-         Pext_k14=lag(Pext, n=2),
-         Pext_k21=lag(Pext, n=3),
-         Pext_k28=lag(Pext, n=4),
-         avgTotP_HEratio_k7=lag(avgTotP_HEratio, n=1),
-         avgTotP_HEratio_k14=lag(avgTotP_HEratio, n=2),
-         avgTotP_HEratio_k21=lag(avgTotP_HEratio, n=3),
-         avgTotP_HEratio_k28=lag(avgTotP_HEratio, n=4),) %>% 
-  ungroup()
-
-### filter out NAs ###
-all_x2<- all_x2 %>% filter(week_bin>= 196 & week_bin <= 252)
-```
-
-Lagged loads added.
-
-# Step 5. Merge the response and predictor variables:
-
-```{r}
-inputs_weekly<- merge(all_x2, cyanoHAB,
-                 by.x=c("Yr", "week_bin"),
+inputs_weekly<- merge(all_loads, cyanoHAB,
+                 by.x=c("Yr", "daynum"),
                  by.y=c("Yr", "daynum_bin"), all.y=TRUE)
 ```
 
