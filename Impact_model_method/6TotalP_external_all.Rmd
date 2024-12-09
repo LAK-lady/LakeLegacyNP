@@ -58,8 +58,8 @@ streams3<- streams2 %>%
          SMC_kgday="Six Mile Creek",
          YR_kgday="Yahara River",
          Pstreams_kgday="All") %>%
-  #mutate(Pstreams_kgday=(Pstreams_kgday-(PB_kgday*0.5))) %>% #counterfactual scenario 1
-  select(sampledate, Yr, daynum, Pstreams_kgday)
+  mutate(Pstreams_kgday_CF1=(Pstreams_kgday-(PB_kgday*0.1))) %>% #counterfactual scenario 1
+  select(sampledate, Yr, daynum, Pstreams_kgday, Pstreams_kgday_CF1)
 ```
 
 Stream data reformatted.
@@ -94,7 +94,8 @@ Data merged.
 ### add fields for total P with and without other P sources ###
 extP_load <- extP_load %>%
   mutate(Pother_kgday=((Patm_kgday + Pstreams_kgday)*.47), #assign new column for P_other with 47% of total
-         Pext_kgday=((Patm_kgday + Pstreams_kgday)*1.47))  #increase P_ext 47% to account for P_other
+         Pext_kgday=((Patm_kgday + Pstreams_kgday)*1.47),
+         Pext_kgday_CF1=((Patm_kgday + Pstreams_kgday_CF1)+Pother_kgday))  #increase P_ext 47% to account for P_other
 ```
 
 External P loading merged.
