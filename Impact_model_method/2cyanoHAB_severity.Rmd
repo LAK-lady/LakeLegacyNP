@@ -96,8 +96,9 @@ SIfig19a<- ggplot(data=SIfig19a_data,
   geom_point() + #adds points at observations
   geom_line() + #adds lines between 
   facet_wrap(~Yr) +
-  theme_classic(base_size=12) +
-  labs(x="Day of Year", y="Total Chl-a (ug/L)", title="a)") +
+  theme_classic(base_size=8) +
+  labs(x="Day of Year", y=NULL, title="a) Total Chl-a (ug/L)") +
+  theme(axis.text.x=element_text(angle=45))+
   annotate('rect', xmin=min(SIfig19a_data$daynum), xmax=max(SIfig19a_data$daynum),
            ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
   annotate('rect', xmin=min(SIfig19a_data$daynum), xmax=max(SIfig19a_data$daynum),
@@ -116,18 +117,19 @@ SIfig19b_data<- Me_cyano %>%
   filter(daynum>= 189 & daynum<= 259)
 
 SIfig19b<- ggplot(data=SIfig19b_data,
-                  aes(x=daynum, y=CD_cellsmL))+
+                  aes(x=daynum, y=CD_cellsmL/10000))+
   geom_point() +  #point plot 
   geom_line() + #lines between points
   facet_wrap(~Yr) + #by year
-  theme_classic(base_size=12)+
+  theme_classic(base_size=8)+
+  theme(axis.text.x=element_text(angle=45))+
   annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=0, ymax=20000, alpha=.2, fill='green') + #low/no CyanoHAB
+           ymin=0, ymax=2, alpha=.2, fill='green') + #low/no CyanoHAB
   annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=20000, ymax=100000, alpha=.2, fill='orange')+ #moderate CyanoHAB
+           ymin=2, ymax=10, alpha=.2, fill='orange')+ #moderate CyanoHAB
   annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=100000, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
-  labs(x="Day of Year", y="Cyanobacteria Density (cells/mL)", title="b)")
+           ymin=10, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
+  labs(x="Day of Year", y=NULL, title="b) Cyanobacteria Density (10^4 cells/mL)")
 ```
 
 
@@ -165,13 +167,13 @@ Yr<- seq(from=2013, #define year start of study period
 Yr #prints the expected years of data
 
 ### define the observation frequency ###
-daynum_bins<- seq(from=196, #define date start of CyanoHAB season
-                  to=252, #define date end of CyanoHAB season
-                  by=14) #creates a sequence every 14 days 
+daynum_bins<- seq(from=182, #define  start 
+                  to=252, #define  end 
+                  by=7) #creates a sequence every 14 days 
 daynum_bins #prints the expected observation dates of data
 
 ### create data frame with expected observations ###
-cyanoHAB_bins<- data.frame(Yr=rep(Yr, each=5), #repeat Yr for every daynum 
+cyanoHAB_bins<- data.frame(Yr=rep(Yr, each=11), #repeat Yr for every daynum 
                            daynum_bin=rep(daynum_bins, times=6)) #repeat daynum for every year
 ```
 
@@ -181,25 +183,39 @@ b) binning observed dates into expected dates...
 
 ```{r}
 Chla_CD2 <- Chla_CD  %>%
-  filter(daynum>= 189 & daynum<= 259) %>% #filter for cyanoHAB season +- 7 days
   mutate(daynum_bin=
-         ifelse(daynum<(daynum_bins[2]-7), #if observation is <= bin 2 min
+         ifelse(daynum<daynum_bins[1]-7, #if outside the cyanoHAB season...
+                0, #report zero
+                
+                ifelse(daynum>=(daynum_bins[1]-3.5) & daynum<(daynum_bins[1]+3.5), #if observation is <= bin 2 min
                 daynum_bins[1], #yes returns bin 1
-                ifelse(daynum>=(daynum_bins[2]-7)&daynum<(daynum_bins[3]-7),
+                
+                ifelse(daynum>=(daynum_bins[2]-3.5)&daynum<(daynum_bins[2]+3.5),
               #if observation is > bin 2 min and <= bin 3 min
               daynum_bins[2], #yes returns bin 2
-              ifelse(daynum>=(daynum_bins[3]-7)&daynum<(daynum_bins[4]-7),
+              ifelse(daynum>=(daynum_bins[3]-3.5)&daynum<(daynum_bins[3]+3.5),
                      #if observation is > bin 3 min and <= bin 4 min
                      daynum_bins[3], #yes returns bin 3
-                     ifelse(daynum>=(daynum_bins[4]-7)&daynum<(daynum_bins[5]-7),
+                     ifelse(daynum>=(daynum_bins[4]-3.5)&daynum<(daynum_bins[4]+3.5),
                             #if observation is > bin 4 min and <= bin 5 min 
                             daynum_bins[4], #yes returns bin 4
-                            daynum_bins[5])))))#no returns bin 5
-                     
-Chla_CD2$daynum_bin[11]<- 210 #day nums shifted
-Chla_CD2$daynum_bin[12]<- 224 #day nums shifted
-Chla_CD2$daynum_bin[13]<- 238 #day nums shifted
-Chla_CD2$daynum_bin[14]<- 252 #day nums shifted
+                            ifelse(daynum>=(daynum_bins[5]-3.5)&daynum<(daynum_bins[5]+3.5),
+                            daynum_bins[5], 
+                            ifelse(daynum>=(daynum_bins[6]-3.5)&daynum<(daynum_bins[6]+3.5),
+                            daynum_bins[6],
+                            ifelse(daynum>=(daynum_bins[7]-3.5)&daynum<(daynum_bins[7]+3.5),
+                            daynum_bins[7],
+                            ifelse(daynum>=(daynum_bins[8]-3.5)&daynum<(daynum_bins[8]+3.5),
+                            daynum_bins[8],
+                            ifelse(daynum>=(daynum_bins[9]-3.5)&daynum<(daynum_bins[9]+3.5),
+                            daynum_bins[9],
+                            ifelse(daynum>=(daynum_bins[10]-3.5)&daynum<(daynum_bins[10]+3.5),
+                            daynum_bins[10],
+                            ifelse(daynum>=(daynum_bins[11]-3.5)&daynum<=(daynum_bins[11]+15),
+                            daynum_bins[11],
+                            0 #if outside the cyanoHAB season assign it zero
+                            )))))))))))))#no returns bin 5
+Chla_CD2<- Chla_CD2 %>%filter(daynum_bin!=0) # remove values outside of cyanoHAB season                 
 ```
 
 Observed dates assigned to closest expected dates.
@@ -210,7 +226,7 @@ c) merging the data frames with expected bins...
 cyanoHAB<- merge(cyanoHAB_bins, #x data frame
                  Chla_CD2, #y data frame
                  by=c("Yr","daynum_bin"),
-                 all.x=TRUE) #define the key fields
+                 all=TRUE) #define the key fields
 ```
 
 Data merged.
@@ -226,23 +242,27 @@ summary(cyanoHAB)
 
 3 NAs identified.
 
-b) if NAs randomly missing and rare, replacing with mean...
+b) interpolating missing values where appropriate...
 
 ```{r}
-### calculate annual means for cyanoHAB season ###
-yr_mean<- cyanoHAB %>%
+### linearly interpolate the missing values ###
+cyanoHAB_approx<- cyanoHAB %>%  
   group_by(Yr) %>%
-  summarize(avg_Chla=mean(Chla_ugL, na.rm=TRUE),
-            se_Chla=(sd(Chla_ugL, na.rm=TRUE)/sqrt(length(Chla_ugL))), 
-            avg_CD=mean(CD_cellsmL, na.rm=TRUE),
-            se_CD=(sd(CD_cellsmL, na.rm=TRUE)/sqrt(length(CD_cellsmL))))
-yr_mean
+  mutate(Chla_ugL=na.approx(Chla_ugL, na.rm=F),
+         CD_cellsmL=na.approx(CD_cellsmL, na.rm=F)) %>% #interpolates where NA
+  ungroup() 
+```
 
+Daily observations interpolated.
+
+c) if NAs randomly missing and rare, replacing with annual mean...
+
+```{r}
 ### fill missing values with the annual mean ###
-cyanoHAB<- cyanoHAB %>%
+cyanoHAB_approx<- cyanoHAB_approx %>%
   group_by(Yr) %>%
   mutate(across(Chla_ugL, ~na.aggregate(., FUN=mean, na.rm=FALSE)),
-         across(CD_cellsmL, ~na.aggregate(., FUN=mean, na.rm=TRUE))) %>%
+         across(CD_cellsmL, ~na.aggregate(., FUN=mean, na.rm=FALSE))) %>%
   ungroup()
 
 ### check that missing values replaced with means ###
@@ -251,14 +271,28 @@ summary(cyanoHAB)
 
 NAs replaced.
 
-# Step 6. Save as new data files:
+# Step 6. Add lagged values and filter to cyanoHAB season:
+
+```{r}
+### add lagged values ###
+cyanoHAB_severity<- cyanoHAB_approx %>%
+  mutate(Chla_ugL_k7=lag(Chla_ugL, n=1),
+         CD_cellsmL_k7=lag(CD_cellsmL, n=1))
+
+### filter for cyanoHAB season ###
+cyanoHAB_severity<- cyanoHAB_severity %>% filter(daynum_bin>=196&daynum_bin<=252)
+```
+
+Lagged values added.
+
+# Step 7. Save as new data file:
 
 ```{r}
 ### save the new Chla data file ###
-write.csv(cyanoHAB, file="Cleaned_data/cyanoHAB_severity.csv")
+write.csv(cyanoHAB_severity, file="Cleaned_data/cyanoHAB_severity.csv")
 ```
 
-# Step 9: Make 3D graphs of response variables for entire year:
+# Step 8: Make 3D graphs of response variables for entire year:
 
 a) 3D plot of Chl-a across day number and year...
 
