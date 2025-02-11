@@ -15,9 +15,15 @@ Data was also converted to time series.
 a) loading the dependent packages...
 
 ```{r}
-library(ggplot2) #needed for plots
+### packages needed for reformatting data files ###
 library(dplyr) #needed for reshaping/reformating data
+
+
+### packages needed for plotting data ###
+library(ggplot2) #needed for plots
 library(ggpubr) #needed for graphing multiple plots
+
+### packages needed for statistical analysis ###
 library(zoo) #needed for na aggregate
 ```
 
@@ -51,6 +57,16 @@ cyanos<- phyto %>%
   ungroup() %>%
   mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
          daynum=as.numeric(format(sampledate, "%j")))
+
+### reformatting and summarizing chla data ###
+chla<- Chl %>%
+  mutate(sampledate=as.Date(Date, 
+                            format="%m/%d/%Y", 
+                            origin="1899-12-30"),
+         Chla_ugL=Value) %>% #tells R to format field as Date
+  filter(depth_ft<=10) 
+  group_by(sampledate, id)
+
 ```
 
 CD reformatted and filtered.
