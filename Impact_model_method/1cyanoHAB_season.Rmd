@@ -30,6 +30,9 @@ Secchi<- read.csv(file="Cleaned_data/HarshaLake_secchi.csv")
 
 ### load the phytoplankton cell count data ###
 phyto<-read.csv(file="Cleaned_data/HarshaLake_phytoplankton.csv")
+
+### load the chlorophyll-a data ###
+Chl<- read.csv(file="Original_data/HarshaLake_Chla.csv", header=TRUE) #has chl data
 ```
 
 Data loaded.
