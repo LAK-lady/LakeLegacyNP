@@ -30,9 +30,6 @@ Secchi<- read.csv(file="Cleaned_data/HarshaLake_secchi.csv")
 
 ### load the phytoplankton cell count data ###
 phyto<-read.csv(file="Cleaned_data/HarshaLake_phytoplankton.csv")
-
-### load the chlorophyll-a data ###
-Chl<- read.csv(file="Original_data/HarshaLake_Chla.csv", header=TRUE) #has chl data
 ```
 
 Data loaded.
@@ -160,6 +157,7 @@ Secchi data formated.
 
 c) merging the data...
 ```{r}
+### generate the cyanobacteria values ###
 cyanos<- phyto %>%
   mutate(sampledate=as.Date(CollectionDate, 
                             format="%m/%d/%Y",
@@ -171,6 +169,10 @@ cyanos<- phyto %>%
   filter(cyano_relabund<=100) %>% #remove any invalid records (>100%  not valid entry)
   ungroup()
 
+### save the data as new file ###
+write.csv(cyanos, file="Cleaned_data/HarshaLake_cyanos.csv")
+
+### generate the Secchi values ###
 Secchi2<- Secchi %>%
   mutate(sampledate=as.Date(SampleDate, 
                             format="%m/%d/%Y",
@@ -178,7 +180,7 @@ Secchi2<- Secchi %>%
          SD_m=Value*in_m, #add units to field
          Value=NULL, Unit=NULL, Variable=NULL, SampleDate=NULL) #remove extra fields
   
-
+### merge CD and Secchi values ###
 cyanoHAB_season<- merge(cyanos, Secchi2, by=c("SiteID", "sampledate"),
                        all =TRUE) #merges data frames and keeps all records 
 cyanoHAB_season<- cyanoHAB_season %>%
