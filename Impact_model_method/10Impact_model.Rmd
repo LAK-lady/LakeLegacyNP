@@ -285,7 +285,7 @@ c) plotting results...
 ### alternatively a boxplot series ###
 comparisons<- list(c("Baseline", "CF1"), c("Baseline", "CF2"), c("Baseline", "CF3"))
 fig3b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/10000, group=Scenario)) +
-  geom_boxplot(aes(col=Scenario))+
+  geom_violin(aes(col=Scenario), trim=FALSE)+
   scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
   labs(y="x10^4 cells/mL", title="b) Cyanobacteria Cell Density") +
   theme_classic() +
@@ -304,3 +304,14 @@ ggsave(fig3, file="Products/Figure3_color.png")
 ```
 
 Figures combined
+
+e) printing scenario summary stats...
+
+```{r}
+sum<- Severity_long %>% 
+  group_by(Scenario) %>% 
+  summarize(avg=mean(CD_cellsmL),
+            se=sd(CD_cellsmL)/sqrt(length(CD_cellsmL)))
+sum
+```
+Summary stats printed.
