@@ -4,7 +4,7 @@ The purpose of this repository is to provide the code and data used to quantify 
 The code and data contained herein are provided as supplemental information (SI) associated with the following article: 
 
 Title: The impact of legacy nutrient loading from lake sediments on cyanobacteria bloom severity. 
-Author names and affiliations: Lauren A. Knose1, David L. Cole2, Edgar Martín-Hernández3,4, Gerardo J. Ruiz-Mercado5,6*, Victor M. Zavala2, Michael A. Gonzalez5, Céline Vaneeckhaute4
+Author names and affiliations: Lauren A. Knose1, David L. Cole2, Edgar Martín-Hernández3,4, Victor M. Zavala2, Michael A. Gonzalez5, Céline Vaneeckhaute4, Gerardo J. Ruiz-Mercado5,6* 
 1Research Participation Program, Oak Ridge Institute for Science and Education, Cincinnati, Ohio, United States
 2Department of Chemical Engineering, University of Wisconsin, Madison, Wisconsin, United States
 3Department of Mining and Materials Engineering, McGill University, Quebec, Canada
