@@ -17,7 +17,8 @@ a) Loading dependent packages...
 library(zoo) #needed to interpolate NA values (na.approx function)
 library(ggplot2) #needed for plots
 library(ggpubr) #needed to plot two plots in one graph
-library(dplyr) #needed for reshaping/reformating data
+library(dplyr) #needed for reshaping/reformatting data
+library(reshape2) #needed for reshapting data frames
 ```
 
 b) Loading data...
@@ -55,9 +56,9 @@ b) defining the weekly observation sequence...
 
 ```{r}
 ### define the time sequence needed ###
-week_bins<-seq(from=196, 
-                  to=252, #define date end of cyanoHAB season
-                  by=7) #creates a sequence every 7 days 
+week_bins<-seq(from=189, 
+                  to=259, #define date end of cyanoHAB season
+                  by=7) #creates a sequence every 14 days 
 week_bins
 ```
 
@@ -98,7 +99,7 @@ Weekly loads calculated.
 # Step 3. Merge the response and predictor variables:
 
 ```{r}
-inputs_weekly<- merge(all_loads, cyanoHAB,
+inputs<- merge(all_loads, cyanoHAB,
                  by.x=c("Yr", "daynum"),
                  by.y=c("Yr", "daynum_bin"), all.y=TRUE)
 ```
@@ -109,7 +110,7 @@ Data files merged.
 
 ```{r}
 ### saving weekly data file ###
-write.csv(inputs_weekly, file="Cleaned_data/Impact_model_weekly.csv")
+write.csv(inputs, file="Cleaned_data/Impact_model_weekly.csv")
 ```
 
 # Step 5. View and summarize the data:
@@ -207,15 +208,15 @@ Pload_comp<- loads %>%
   group_by(Yr) %>%
   summarize(Pstreams_kgyr=sum(Pstreams_kgday),
             Int_TotP_kgyr=sum(Int_TotP_kgday))
-mean(Pload_comp$Int_TotP_kgyr/Pload_comp$Pstreams_kgyr)
+mean(Pload_comp$Int_TotP_kgyr/Pload_comp$Pstreams_kgyr, na.rm=TRUE)
 
 Pload_comp_dry<- Pload_comp %>%
   filter(Yr!=2016 & Yr!=2018)
-mean(Pload_comp_dry$Int_TotP_kgyr/Pload_comp_dry$Pstreams_kgyr)
+mean(Pload_comp_dry$Int_TotP_kgyr/Pload_comp_dry$Pstreams_kgyr, na.rm=TRUE)
 
 Pload_comp_wet<- Pload_comp %>%
   filter(Yr==2016 | Yr==2018)
-mean(Pload_comp_wet$Int_TotP_kgyr/Pload_comp_wet$Pstreams_kgyr)
+mean(Pload_comp_wet$Int_TotP_kgyr/Pload_comp_wet$Pstreams_kgyr, na.rm=TRUE)
 ```
 
 Comparison calculated.
