@@ -29,6 +29,9 @@ b) Loading data...
 ```{r}
 ### loading the data ###
 weekly<- read.csv(file="Cleaned_data/Impact_model_weekly.csv")
+
+### bound data to cyanoHAB season ###
+weekly<- weekly %>% filter(daynum>=196 & daynum <=252)
 ```
 
 Data loaded.
@@ -42,17 +45,17 @@ a) defining predictor lags and transformation...
 SIfig13a<- ggscatter(data=weekly,
           x="CD_cellsmL_k7",y="CD_cellsmL", 
           add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="CD_cellsmL_k7", ylab="CD_cellsmL")
+          xlab="CD (cells/mL), lagged 1 week", ylab="CD (cells/mL)")
 
 SIfig13b<-ggscatter(data=weekly,
           x="Pint_k21",y="CD_cellsmL", 
           add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="Pint_k21", ylab="CD_cellsmL")+ xscale("log10", .format=TRUE)
+          xlab="Pint, lagged 3 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
 
 SIfig13c<- ggscatter(data=weekly,
           x="Pext_k28",y="CD_cellsmL", 
           add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="Pext_k28", ylab="CD_cellsmL")+ xscale("log10", .format=TRUE)
+          xlab="Pext, lagged 4 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
 
 SIfig13<- ggarrange(SIfig13a, SIfig13b, SIfig13c, nrow=3, ncol=1)
 SIfig13
@@ -65,31 +68,23 @@ Predictor lags defined.
 b) checking for normality...
 
 ```{r}
-par(mfrow=c(2,4))
+par(mfrow=c(2,4), mar=c(4,4,4,4))
 hist(weekly$Chla_ugL, breaks=18,#histograph of Chl-a
-     main="non-transformed",
-     xlab="Chl-a") 
+     main="non-transformed", xlab="Chl-a") 
 hist(weekly$CD_cellsmL, breaks=18,#histograph of CD
-     main="non-transformed",
-     xlab="CD") 
+     main="non-transformed", xlab="CD") 
 hist(weekly$Pext_k28, breaks=18,#histogrpah of P_ext
-     main="non-transformed",
-     xlab="P_ext_k28") 
+     main="non-transformed", xlab="P_ext_k28") 
 hist(weekly$Pint_k21, breaks=18,#histograph of P_int
-     main="non-transformed",
-     xlab="P_int_k21") 
+     main="non-transformed", xlab="P_int_k21") 
 hist(log10(weekly$Chla_ugL), breaks=18,#histograph of log10(Chl-a)
-     main="log-transformed",
-     xlab="Chl-a") 
+     main="log-transformed", xlab="Chl-a") 
 hist(log10(weekly$CD_cellsmL), breaks=18,#histograph of log10(CD)
-     main="log-transformed",
-     xlab="CD") 
+     main="log-transformed", xlab="CD") 
 hist(log10(weekly$Pext_k28), breaks=18,#histograph of log10(P_ext)
-     main="log-transformed",
-     xlab="P_ext_k28") 
+     main="log-transformed", xlab="P_ext_k28") 
 hist(log10(weekly$Pint_k21), breaks=18,#histograph of log10(P_int)
-     main="log-transformed",
-     xlab="P_int_k21") 
+     main="log-transformed", xlab="P_int_k21") 
 par(mfrow=c(1,1)) #return to default
 #save manually as SI-fig14
 ```
@@ -101,9 +96,6 @@ Comparison of non-transformed and transformed data graphed.
 a) running model: CD_t ~ log10(P_int, t-k) + log10(P_ext,t-k) + error
 
 ```{r}
-### remove outliers if necessary ###
-weekly<- weekly[-c(18),] #outlier identified in diagnostics
-
 ### define the model ###
 regka_CD<- glm(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=weekly)
 
@@ -120,15 +112,18 @@ b) running model diagnostics...
 
 ```{r}
 ### print model diagnostics ###
-par(mfrow=c(3,2), mar=c(2,2,2,2))
+par(mfrow=c(3,2), mar=c(4,4,4,4))
 plot(regka_CD)
 
 ### plot expected vs observed ###
 plot(x=predict(regka_CD), y=weekly$CD_cellsmL, 
     xlab="Predicted Values", ylab="Observed Values", main="Predicted vs Observed")
 abline(a=0,b=1) #add 1:1 line to plot
-# save as SIfig14
-par(mfrow=c(1,1))
+# save as SIfig15
+par(mfrow=c(1,1)) #return par to default
+
+### remove outliers if necessary ###
+weekly<- weekly[-c(38, 22),] #outlier identified in diagnostics
 
 ### print model VIFs ###
 vif(regka_CD) #prints the VIFs 
@@ -193,7 +188,7 @@ c) combining the SSR into one data file...
 Model_output_CD<- cbind(impact2013, impact2014, impact2015, impact2016, impact2017, impact2018) #combines all tables together
 Model_output_CD$Sum_Sq_part<- c("Seed Stock", "Internal load","External load", "Residual") #add column with predictor name
 colnames(Model_output_CD)<- c("2013", "2014", "2015", "2016", "2017", "2018", "Sum_Sq_part") # renames columns with year for sum squares
-write.csv(Model_output_CD, file="Products/Figure3_data.csv") #save figure data file
+write.csv(Model_output_CD, file="Products/Figure5a_data.csv") #save figure data file
 
 ### print SS table as bar plot for baseline ###
 CD_table<- melt(Model_output_CD, id.vars="Sum_Sq_part", variable.name = "Year", value.name = "PSS") %>%
@@ -208,14 +203,14 @@ d) plotting the SS...
 
 ```{r}
 ### plot the output ###
-fig3a<- ggplot(data=CD_table, aes(y=PSS, x=Year, pattern=Sum_Sq_part, fill=Sum_Sq_part)) +
+fig5a<- ggplot(data=CD_table, aes(y=PSS, x=Year, pattern=Sum_Sq_part, fill=Sum_Sq_part)) +
   geom_bar_pattern(position="fill", stat="identity") +
   labs(y="Sum of Squares for Regression", pattern="Predictor",title="a) Variance by Year") +
   guides(fill="none") +
   theme_classic()+
   theme(legend.position="bottom")+
   scale_pattern_manual(values=c('crosshatch','stripe','wave','circle'))
-fig3a
+fig5a
 ```
 
 Yearly source-attributed impact outputted.
@@ -284,23 +279,23 @@ c) plotting results...
 
 ### alternatively a boxplot series ###
 comparisons<- list(c("Baseline", "CF1"), c("Baseline", "CF2"), c("Baseline", "CF3"))
-fig3b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/10000, group=Scenario)) +
+fig5b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/10000, group=Scenario)) +
   geom_violin(aes(col=Scenario), trim=FALSE)+
   scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
   labs(y="x10^4 cells/mL", title="b) Cyanobacteria Cell Density") +
   theme_classic() +
   theme(legend.position="bottom") +
   stat_compare_means(comparisons=comparisons, method="t.test", label="p.signif")
-fig3b
-write.csv(Severity_long, file="Products/Figure3b_data.csv")
+fig5b
+write.csv(Severity_long, file="Products/Figure5b_data.csv")
 ```
 
 d) combining figures...
 
 ```{r}
-fig3<- ggarrange(fig3a, fig3b, nrow=1, ncol=2)
-fig3
-ggsave(fig3, file="Products/Figure3_color.png")
+fig5<- ggarrange(fig5a, fig5b, nrow=1, ncol=2)
+fig5
+ggsave(fig3, file="Products/Figure5_color.png")
 ```
 
 Figures combined
