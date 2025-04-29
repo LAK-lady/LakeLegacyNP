@@ -36,7 +36,7 @@ Chl<- read.csv(file="Original_data/ntl38_v5_chl.csv", header=TRUE) #has chl data
 
 Data loaded. 
 
-# Step 2. Calculate cyanobacteria cell density (CD):
+# Step 2. Calculate cyanobacteria cell density (CD) and chlorophyll-a (chl-a):
 
 a) reformatting and filtering the data...
 
@@ -88,10 +88,10 @@ a) plotting Chl-a data available...
 
 ```{r}
 ### plot cyanoHAB severity as chl-a over time ###
-SIfig19a_data<- Me_Chl %>%
+SIfig16a_data<- Me_Chl %>%
   filter(daynum>= 189 & daynum<= 259)
 
-SIfig19a<- ggplot(data=SIfig19a_data, 
+SIfig16a<- ggplot(data=SIfig16a_data, 
                   aes(x=daynum, y=Chla_ugL)) + #plots Chl-a across date
   geom_point() + #adds points at observations
   geom_line() + #adds lines between 
@@ -99,12 +99,13 @@ SIfig19a<- ggplot(data=SIfig19a_data,
   theme_classic(base_size=8) +
   labs(x="Day of Year", y=NULL, title="a) Total Chl-a (ug/L)") +
   theme(axis.text.x=element_text(angle=45))+
-  annotate('rect', xmin=min(SIfig19a_data$daynum), xmax=max(SIfig19a_data$daynum),
+  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
            ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=min(SIfig19a_data$daynum), xmax=max(SIfig19a_data$daynum),
+  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
            ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=min(SIfig19a_data$daynum), xmax=max(SIfig19a_data$daynum),
+  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
            ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
+SIfig16a #print figure
 ```
 
 Chl-a data plotted. 
@@ -113,32 +114,33 @@ b) Plotting CD data available...
 
 ```{r}
 ### plot cyanoHAB severity as CD over time ###
-SIfig19b_data<- Me_cyano %>%
+SIfig16b_data<- Me_cyano %>%
   filter(daynum>= 189 & daynum<= 259)
 
-SIfig19b<- ggplot(data=SIfig19b_data,
-                  aes(x=daynum, y=CD_cellsmL/10000))+
+SIfig16b<- ggplot(data=SIfig16b_data,
+                  aes(x=daynum, y=CD_cellsmL/100000))+
   geom_point() +  #point plot 
   geom_line() + #lines between points
   facet_wrap(~Yr) + #by year
   theme_classic(base_size=8)+
   theme(axis.text.x=element_text(angle=45))+
-  annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=0, ymax=2, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=2, ymax=10, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=min(SIfig19b_data$daynum), xmax=max(SIfig19b_data$daynum),
-           ymin=10, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
-  labs(x="Day of Year", y=NULL, title="b) Cyanobacteria Density (10^4 cells/mL)")
+  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+           ymin=0, ymax=0.2, alpha=.2, fill='green') + #low/no CyanoHAB
+  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+           ymin=0.2, ymax=1, alpha=.2, fill='orange')+ #moderate CyanoHAB
+  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+           ymin=1, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
+  labs(x="Day of Year", y=NULL, title="b) Cyanobacteria Density (10^5 cells/mL)")
+SIfig16b #print figure
 ```
 
 
 c) plotting chla and CD together...
 
 ```{r}
-SIfig19<- ggarrange(SIfig19a, SIfig19b, ncol=2, nrow=1, widths=c(0.5, 0.5))
-SIfig19
-ggsave("Products/SI_figures/Figure19_color.png") #saves plot to Products folder
+SIfig16<- ggarrange(SIfig16a, SIfig16b, ncol=2, nrow=1, widths=c(0.5, 0.5))
+SIfig16
+ggsave("Products/SI_figures/Figure16_color.png") #saves plot to Products folder
 ```
 
 Chla and CD data plotted. 
@@ -167,8 +169,8 @@ Yr<- seq(from=2013, #define year start of study period
 Yr #prints the expected years of data
 
 ### define the observation frequency ###
-daynum_bins<- seq(from=182, #define  start 
-                  to=252, #define  end 
+daynum_bins<- seq(from=189, #define  start 
+                  to=259, #define  end 
                   by=7) #creates a sequence every 14 days 
 daynum_bins #prints the expected observation dates of data
 
@@ -186,36 +188,30 @@ Chla_CD2 <- Chla_CD  %>%
   mutate(daynum_bin=
          ifelse(daynum<daynum_bins[1]-7, #if outside the cyanoHAB season...
                 0, #report zero
-                
-                ifelse(daynum>=(daynum_bins[1]-3.5) & daynum<(daynum_bins[1]+3.5), #if observation is <= bin 2 min
+ifelse(daynum>=(daynum_bins[1]-7) & daynum<(daynum_bins[1]+3.5), #logic test
                 daynum_bins[1], #yes returns bin 1
-                
-                ifelse(daynum>=(daynum_bins[2]-3.5)&daynum<(daynum_bins[2]+3.5),
-              #if observation is > bin 2 min and <= bin 3 min
-              daynum_bins[2], #yes returns bin 2
-              ifelse(daynum>=(daynum_bins[3]-3.5)&daynum<(daynum_bins[3]+3.5),
-                     #if observation is > bin 3 min and <= bin 4 min
-                     daynum_bins[3], #yes returns bin 3
-                     ifelse(daynum>=(daynum_bins[4]-3.5)&daynum<(daynum_bins[4]+3.5),
-                            #if observation is > bin 4 min and <= bin 5 min 
-                            daynum_bins[4], #yes returns bin 4
-                            ifelse(daynum>=(daynum_bins[5]-3.5)&daynum<(daynum_bins[5]+3.5),
-                            daynum_bins[5], 
-                            ifelse(daynum>=(daynum_bins[6]-3.5)&daynum<(daynum_bins[6]+3.5),
-                            daynum_bins[6],
-                            ifelse(daynum>=(daynum_bins[7]-3.5)&daynum<(daynum_bins[7]+3.5),
-                            daynum_bins[7],
-                            ifelse(daynum>=(daynum_bins[8]-3.5)&daynum<(daynum_bins[8]+3.5),
-                            daynum_bins[8],
-                            ifelse(daynum>=(daynum_bins[9]-3.5)&daynum<(daynum_bins[9]+3.5),
-                            daynum_bins[9],
-                            ifelse(daynum>=(daynum_bins[10]-3.5)&daynum<(daynum_bins[10]+3.5),
-                            daynum_bins[10],
-                            ifelse(daynum>=(daynum_bins[11]-3.5)&daynum<=(daynum_bins[11]+15),
-                            daynum_bins[11],
-                            0 #if outside the cyanoHAB season assign it zero
-                            )))))))))))))#no returns bin 5
-Chla_CD2<- Chla_CD2 %>%filter(daynum_bin!=0) # remove values outside of cyanoHAB season                 
+ifelse(daynum>=(daynum_bins[2]-3.5)&daynum<(daynum_bins[2]+3.5), #no, go to next logic test
+                daynum_bins[2], 
+ifelse(daynum>=(daynum_bins[3]-3.5)&daynum<(daynum_bins[3]+3.5),
+                daynum_bins[3], 
+ifelse(daynum>=(daynum_bins[4]-3.5)&daynum<(daynum_bins[4]+3.5),
+                daynum_bins[4], 
+ifelse(daynum>=(daynum_bins[5]-3.5)&daynum<(daynum_bins[5]+3.5),
+                daynum_bins[5],                             ifelse(daynum>=(daynum_bins[6]-3.5)&daynum<(daynum_bins[6]+3.5),
+                daynum_bins[6],                            ifelse(daynum>=(daynum_bins[7]-3.5)&daynum<(daynum_bins[7]+3.5),
+                daynum_bins[7],                           ifelse(daynum>=(daynum_bins[8]-3.5)&daynum<(daynum_bins[8]+3.5),
+                daynum_bins[8],                           ifelse(daynum>=(daynum_bins[9]-3.5)&daynum<(daynum_bins[9]+3.5),
+                daynum_bins[9],                           ifelse(daynum>=(daynum_bins[10]-3.5)&daynum<(daynum_bins[10]+3.5),
+                daynum_bins[10],                            ifelse(daynum>=(daynum_bins[11]-3.5)&daynum<=(daynum_bins[11]+21),
+                daynum_bins[11],
+                0 )))))))))))))#if fail all logic tests, give value zero
+
+### remove observations outside of season (values of zero)
+Chla_CD2<- Chla_CD2 %>%filter(daynum_bin!=0) 
+
+### spot check bin values and correct as needed ###
+Chla_CD2<- Chla_CD2[-c(31,38),] #drop extra values
+Chla_CD2$daynum_bin[c(28,29,30)]<- c(231, 245, 259)
 ```
 
 Observed dates assigned to closest expected dates.
@@ -231,7 +227,7 @@ cyanoHAB<- merge(cyanoHAB_bins, #x data frame
 
 Data merged.
 
-# Step 5. Check for missing values and address:
+# Step 5. Check for missing values and interpolate:
 
 a) checking for NAs...
 
@@ -240,9 +236,9 @@ a) checking for NAs...
 summary(cyanoHAB)
 ```
 
-3 NAs identified.
+NAs identified.
 
-b) interpolating missing values where appropriate...
+b) interpolating missing values...
 
 ```{r}
 ### linearly interpolate the missing values ###
@@ -253,23 +249,7 @@ cyanoHAB_approx<- cyanoHAB %>%
   ungroup() 
 ```
 
-Daily observations interpolated.
-
-c) if NAs randomly missing and rare, replacing with annual mean...
-
-```{r}
-### fill missing values with the annual mean ###
-cyanoHAB_approx<- cyanoHAB_approx %>%
-  group_by(Yr) %>%
-  mutate(across(Chla_ugL, ~na.aggregate(., FUN=mean, na.rm=FALSE)),
-         across(CD_cellsmL, ~na.aggregate(., FUN=mean, na.rm=FALSE))) %>%
-  ungroup()
-
-### check that missing values replaced with means ###
-summary(cyanoHAB)
-```
-
-NAs replaced.
+Weekly observations interpolated. 
 
 # Step 6. Add lagged values and filter to cyanoHAB season:
 
@@ -278,9 +258,6 @@ NAs replaced.
 cyanoHAB_severity<- cyanoHAB_approx %>%
   mutate(Chla_ugL_k7=lag(Chla_ugL, n=1),
          CD_cellsmL_k7=lag(CD_cellsmL, n=1))
-
-### filter for cyanoHAB season ###
-cyanoHAB_severity<- cyanoHAB_severity %>% filter(daynum_bin>=196&daynum_bin<=252)
 ```
 
 Lagged values added.
@@ -292,7 +269,28 @@ Lagged values added.
 write.csv(cyanoHAB_severity, file="Cleaned_data/cyanoHAB_severity.csv")
 ```
 
-# Step 8: Make 3D graphs of response variables for entire year:
+(optional) Regress response variables against each other:
+
+```{r}
+### regress non-interpolated data ###
+rvregress<- cyanoHAB %>% filter_at(vars(Chla_ugL, CD_cellsmL), all_vars(!is.na(.)))
+
+### regressing CD against chl-a ###
+SIfig17<- ggplot(data=rvregress, aes(x=Chla_ugL, y=CD_cellsmL/100000)) + 
+  geom_point()+
+  stat_smooth(method="lm")+
+  theme_classic(base_size=12) +
+  labs(x="Chlorophyll-a (ug/L)", y="Cyanobacteria density (x10^5 cells/mL)") +
+  stat_cor(label.y=10)+
+  stat_regline_equation(label.y=9.5)
+SIfig17
+ggsave(SIfig17, file="Products/SI_figures/Figure17.png")
+### 
+```
+
+Data plotted.
+
+(optional) Make 3D graphs of response variables for entire year:
 
 a) 3D plot of Chl-a across day number and year...
 
