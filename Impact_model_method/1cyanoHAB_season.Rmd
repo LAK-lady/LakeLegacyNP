@@ -88,9 +88,9 @@ SIfig4a<- ggplot(data=SIfig4_data, aes(x=daynum, y=SD_m)) + #plots SD across day
   geom_smooth() + #adds regression curve
   labs(x="Day of year", y="Secchi depth (m)", title="a)") +
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=189, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=259, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 ```
 
 Plot generated.
@@ -106,9 +106,9 @@ SIfig4b <- ggplot(data=SIfig4_data, aes(x=daynum, y=cyano_relbiovol)) + #plots c
   labs(x="Day of year", 
        y="Cyanobacteria biovolume (% total)", title="b)") +
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=-Inf, xmax=196, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
+           xmin=-Inf, xmax=189, ymin=0, ymax=Inf) +#shadow box highlights CyanoHAB season
   annotate('rect', fill='gray60', alpha=.2, #creates a shadow box 
-           xmin=252, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
+           xmin=259, xmax=Inf, ymin=0, ymax=Inf)  #shadow box highlights CyanoHAB season
 SIfig4<- ggarrange(SIfig4a, SIfig4b, nrow=2, ncol=1) #plot figures together
 SIfig4 #print figure
 ggsave(SIfig4, file="Products/SI_figures/Figure4_color.png") #saves plot to Products folder
