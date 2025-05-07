@@ -21,11 +21,12 @@ The list of dependent packages are as follows:
 - remotes 
 - rloadest
 - rLakeAnalyzer
+- forecast
 
 The following code will install the dependent packages to user's machine from the CRAN.
 
 ```{r}
-install.packages(c("dplyr", "reshape2", "data.table", "tidyverse", "zoo","car", "ggplot2", "ggpubr", "ggpattern", "plotly", "rLakeAnalyzer"))
+install.packages(c("dplyr", "reshape2", "data.table", "tidyverse", "zoo","car", "ggplot2", "ggpubr", "ggpattern", "plotly", "rLakeAnalyzer", "forecast"))
 ```
 
 Unless errors reported, all packages are installed. 
@@ -34,12 +35,12 @@ The following code will install the dependent packages to user's machine from th
 
 ```{r}
 install.packages("remotes")
-remotes::install_github("USGS-R/smwrData") #use if 1st time using rloadest
-remotes::install_github("USGS-R/smwrBase") #use if 1st time using rloadest
-remotes::install_github("USGS-R/smwrGraphs") #use if 1st time using rloadest
-remotes::install_github("USGS-R/smwrStats") #use if 1st time using rloadest
-remotes::install_github("USGS-R/smwrQW") #use if 1st time using rloadest
-remotes::install_github("USGS-R/rloadest") #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrData", force=TRUE) #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrBase", force=TRUE) #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrGraphs", force=TRUE) #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrStats", force=TRUE) #use if 1st time using rloadest
+remotes::install_github("USGS-R/smwrQW", force=TRUE) #use if 1st time using rloadest
+remotes::install_github("USGS-R/rloadest", force=TRUE) #use if 1st time using rloadest
 ```
 
 Unless errors reported, all dependent packages are installed.
