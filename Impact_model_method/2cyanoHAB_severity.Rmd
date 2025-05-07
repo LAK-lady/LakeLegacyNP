@@ -51,7 +51,7 @@ Me_cyano<- phyto %>%
          depth_range=="0-8m", #filter for data from integrated samples 0 to 8m
          division=="Cyanophyta", #filter for cyanobacteria
          Yr>=2013 & Yr<=2018) %>% #filter for study period
-  select(sampledate, CD_cellsmL)
+  select(sampledate, Yr, daynum, CD_cellsmL)
 
 ### reformatting and filtering chl-a data ###
 Me_Chl<- Chl %>%
@@ -65,7 +65,7 @@ Me_Chl<- Chl %>%
          Yr>=2013 & Yr<=2018, #filter for study period
          Yr!=2017) %>% #filter the error data out
   filter(!is.na(Chla_ugL)) %>% #removes NAs in chl-a data
-  select(sampledate, Yr, Chla_ugL, daynum) #selects only fields of interest
+  select(sampledate, Yr, daynum, Chla_ugL) #selects only fields of interest
 ```
 
 Data reformatted and filtered.
@@ -74,24 +74,43 @@ b) calculating cyano cell density (CD)...
 
 ```{r}
 Me_cyano<- Me_cyano %>%  
-  group_by(sampledate) %>% #group all observations by sample date
-  summarize(CD_cellsmL=sum(CD_cellsmL)) %>% #adds all the cyanobacteria cells/mL together for each sample date
-  mutate(Yr=as.numeric(format(sampledate, "%Y")), #renames field
-         daynum=as.numeric(format(sampledate, "%j")))  #adds field with day
+  group_by(sampledate, Yr, daynum) %>% #group all observations by sample date
+  summarize(CD_cellsmL=sum(CD_cellsmL)) %>%  #adds all the cyanobacteria cells/mL together for each sample date
+  ungroup()
+
+### plot the data ###
+plot(y=Me_cyano$CD_cellsmL, x=Me_cyano$sampledate, xlab="Sample date", ylab="Cyanobacteria density (cells/mL)")
+### plot the data ###
+plot(y=Me_Chl$Chla_ugL, x=Me_Chl$sampledate, xlab="Sample date", ylab="Chlorophyll-a (ug/L)")
 ```
 
 CD calculated.
 
+c) merging the data files and save...
+
+```{r}
+### merge data files ###
+Chla_CD<- merge(Me_Chl, Me_cyano, by=c("sampledate", "Yr", "daynum"), all=TRUE) 
+
+### add field for week ##
+Chla_CD$wk<- as.integer(format(Chla_CD$sampledate, "%W"))
+
+### save the data file as cleaned observations ###
+write.csv(Chla_CD, file="Cleaned_data/observed_cyanoHABs.csv")
+```
+
+Data files merged and saved.
+
 # Step 3. View the data available:
 
-a) plotting Chl-a data available...
+a) plotting Chl-a data and CD data for cyanoHAB season...
 
 ```{r}
 ### plot cyanoHAB severity as chl-a over time ###
-SIfig16a_data<- Me_Chl %>%
+SIfig13a_data<- Me_Chl %>%
   filter(daynum>= 189 & daynum<= 259)
 
-SIfig16a<- ggplot(data=SIfig16a_data, 
+SIfig13a<- ggplot(data=SIfig13a_data, 
                   aes(x=daynum, y=Chla_ugL)) + #plots Chl-a across date
   geom_point() + #adds points at observations
   geom_line() + #adds lines between 
@@ -99,63 +118,62 @@ SIfig16a<- ggplot(data=SIfig16a_data,
   theme_classic(base_size=8) +
   labs(x="Day of Year", y=NULL, title="a) Total Chl-a (ug/L)") +
   theme(axis.text.x=element_text(angle=45))+
-  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
+  annotate('rect', xmin=min(SIfig13a_data$daynum), xmax=max(SIfig13a_data$daynum),
            ymin=0, ymax=12, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
+  annotate('rect', xmin=min(SIfig13a_data$daynum), xmax=max(SIfig13a_data$daynum),
            ymin=12, ymax=50, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=min(SIfig16a_data$daynum), xmax=max(SIfig16a_data$daynum),
+  annotate('rect', xmin=min(SIfig13a_data$daynum), xmax=max(SIfig13a_data$daynum),
            ymin=50, ymax=Inf, alpha=.2, fill='red') #severe CyanoHAB
-SIfig16a #print figure
-```
+SIfig13a #print figure
 
-Chl-a data plotted. 
-
-b) Plotting CD data available...
-
-```{r}
 ### plot cyanoHAB severity as CD over time ###
-SIfig16b_data<- Me_cyano %>%
+SIfig13b_data<- Me_cyano %>%
   filter(daynum>= 189 & daynum<= 259)
 
-SIfig16b<- ggplot(data=SIfig16b_data,
+SIfig13b<- ggplot(data=SIfig13b_data,
                   aes(x=daynum, y=CD_cellsmL/100000))+
   geom_point() +  #point plot 
   geom_line() + #lines between points
   facet_wrap(~Yr) + #by year
   theme_classic(base_size=8)+
   theme(axis.text.x=element_text(angle=45))+
-  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+  annotate('rect', xmin=min(SIfig13b_data$daynum), xmax=max(SIfig13b_data$daynum),
            ymin=0, ymax=0.2, alpha=.2, fill='green') + #low/no CyanoHAB
-  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+  annotate('rect', xmin=min(SIfig13b_data$daynum), xmax=max(SIfig13b_data$daynum),
            ymin=0.2, ymax=1, alpha=.2, fill='orange')+ #moderate CyanoHAB
-  annotate('rect', xmin=min(SIfig16b_data$daynum), xmax=max(SIfig16b_data$daynum),
+  annotate('rect', xmin=min(SIfig13b_data$daynum), xmax=max(SIfig13b_data$daynum),
            ymin=1, ymax=Inf, alpha=.2, fill='red') +#severe CyanoHAB
   labs(x="Day of Year", y=NULL, title="b) Cyanobacteria Density (10^5 cells/mL)")
-SIfig16b #print figure
+SIfig13b #print figure
+
+### save plot ###
+SIfig13<- ggarrange(SIfig13a, SIfig13b, ncol=2, nrow=1, widths=c(0.5, 0.5))
+SIfig13
+ggsave("Products/SI_figures/Figure13_color.png") #saves plot to Products folder
 ```
 
+Data plotted for cyanoHAB season.
 
-c) plotting chla and CD together...
+b) plotting chla and CD data for whole year...
 
 ```{r}
-SIfig16<- ggarrange(SIfig16a, SIfig16b, ncol=2, nrow=1, widths=c(0.5, 0.5))
-SIfig16
-ggsave("Products/SI_figures/Figure16_color.png") #saves plot to Products folder
+### plot all CD and Chla data ###
+responsevars<- Chla_CD %>% 
+  filter_at(vars(Chla_ugL, CD_cellsmL), all_vars(!is.na(.))) #remove NA's
+
+SIfig14<- ggplot(data=responsevars, aes(y=Chla_ugL, x=(CD_cellsmL/100000))) + 
+  geom_point()+
+  stat_smooth(method="lm")+
+  theme_classic(base_size=12) +
+  labs(y="Chlorophyll-a (ug/L)", x="Cyanobacteria density (x10^5 cells/mL)") +
+  stat_cor(label.y=29, label.x=5)+
+  stat_regline_equation(label.y=27, label.x=5)
+SIfig14
+ggsave(SIfig14, file="Products/SI_figures/Figure14.png")
+### 
 ```
 
 Chla and CD data plotted. 
-
-d) merging the data files and save...
-
-```{r}
-### merge data files ###
-Chla_CD<- merge(Me_Chl, Me_cyano, by=c("sampledate", "Yr", "daynum"), all=TRUE) 
-
-### save the data file as cleaned observations ###
-write.csv(Chla_CD, file="Cleaned_data/observed_cyanoHABs.csv")
-```
-
-Data files merged and saved.
 
 # Step 4. Bin observations into expected frequencies:
 
@@ -171,8 +189,10 @@ Yr #prints the expected years of data
 ### define the observation frequency ###
 daynum_bins<- seq(from=189, #define  start 
                   to=259, #define  end 
-                  by=7) #creates a sequence every 14 days 
+                  by=7) #creates a sequence every 7 days 
 daynum_bins #prints the expected observation dates of data
+
+wk_bins<- seq(from=1,to=52, by=1) #creates weekly sequence 
 
 ### create data frame with expected observations ###
 cyanoHAB_bins<- data.frame(Yr=rep(Yr, each=11), #repeat Yr for every daynum 
@@ -207,11 +227,11 @@ ifelse(daynum>=(daynum_bins[5]-3.5)&daynum<(daynum_bins[5]+3.5),
                 0 )))))))))))))#if fail all logic tests, give value zero
 
 ### remove observations outside of season (values of zero)
-Chla_CD2<- Chla_CD2 %>%filter(daynum_bin!=0) 
+Chla_CD3<- Chla_CD2 %>%filter(daynum_bin!=0) 
 
 ### spot check bin values and correct as needed ###
-Chla_CD2<- Chla_CD2[-c(31,38),] #drop extra values
-Chla_CD2$daynum_bin[c(28,29,30)]<- c(231, 245, 259)
+Chla_CD3$daynum_bin[c(28,29)]<- c(231, 245)  #fix mislabeled obs
+Chla_CD3<- Chla_CD3[-c(31,38),] #drop extra obs
 ```
 
 Observed dates assigned to closest expected dates.
@@ -220,7 +240,7 @@ c) merging the data frames with expected bins...
 
 ```{r}
 cyanoHAB<- merge(cyanoHAB_bins, #x data frame
-                 Chla_CD2, #y data frame
+                 Chla_CD3, #y data frame
                  by=c("Yr","daynum_bin"),
                  all=TRUE) #define the key fields
 ```
@@ -229,11 +249,13 @@ Data merged.
 
 # Step 5. Check for missing values and interpolate:
 
-a) checking for NAs...
+a) summarizing data...
 
 ```{r}
 ### checking for NAs ###
 summary(cyanoHAB)
+plot(x=cyanoHAB$sampledate, y=cyanoHAB$CD_cellsmL, 
+     xlab="Sample Date", ylab="CD (cells/mL)")
 ```
 
 NAs identified.
@@ -251,16 +273,24 @@ cyanoHAB_approx<- cyanoHAB %>%
 
 Weekly observations interpolated. 
 
-# Step 6. Add lagged values and filter to cyanoHAB season:
+# Step 6. Add lagged values:
 
 ```{r}
 ### add lagged values ###
 cyanoHAB_severity<- cyanoHAB_approx %>%
   mutate(Chla_ugL_k7=lag(Chla_ugL, n=1),
-         CD_cellsmL_k7=lag(CD_cellsmL, n=1))
+         CD_cellsmL_k7=lag(CD_cellsmL, n=1),
+         Chla_ugL_k14=lag(Chla_ugL, n=2),
+         CD_cellsmL_k14=lag(CD_cellsmL, n=2),
+         Chla_ugL_k21=lag(Chla_ugL, n=3),
+         CD_cellsmL_k21=lag(CD_cellsmL, n=3),
+         Chla_ugL_k28=lag(Chla_ugL, n=4),
+         CD_cellsmL_k28=lag(CD_cellsmL, n=4))
 ```
 
 Lagged values added.
+
+b) 
 
 # Step 7. Save as new data file:
 
@@ -268,27 +298,6 @@ Lagged values added.
 ### save the new Chla data file ###
 write.csv(cyanoHAB_severity, file="Cleaned_data/cyanoHAB_severity.csv")
 ```
-
-(optional) Regress response variables against each other:
-
-```{r}
-### regress non-interpolated data ###
-rvregress<- cyanoHAB %>% filter_at(vars(Chla_ugL, CD_cellsmL), all_vars(!is.na(.)))
-
-### regressing CD against chl-a ###
-SIfig17<- ggplot(data=rvregress, aes(x=Chla_ugL, y=CD_cellsmL/100000)) + 
-  geom_point()+
-  stat_smooth(method="lm")+
-  theme_classic(base_size=12) +
-  labs(x="Chlorophyll-a (ug/L)", y="Cyanobacteria density (x10^5 cells/mL)") +
-  stat_cor(label.y=10)+
-  stat_regline_equation(label.y=9.5)
-SIfig17
-ggsave(SIfig17, file="Products/SI_figures/Figure17.png")
-### 
-```
-
-Data plotted.
 
 (optional) Make 3D graphs of response variables for entire year:
 
@@ -382,3 +391,49 @@ SIfig20b #prints the figure
 ```
 
 3D plots graphed.
+
+c) time series of CD...
+
+```{r}
+library(xts)
+library(imputeTS)
+
+### create data frame with expected observations ###
+cyanoHAB_bins_ts<- data.frame(date=seq(as.Date(min(Chla_CD2$sampledate)), as.Date(max(Chla_CD2$sampledate)), "1 day"), 
+                              empty="")
+
+### merge data frame with observations ###
+cyanoHAB_ts<- merge(cyanoHAB_bins_ts, #x data frame
+                 Chla_CD2, #y data frame
+                 by.x="date",
+                 by.y="sampledate",
+                 all=TRUE) #define the key fields
+
+## make time series univariate time series ###
+cyanoHAB_ts2<-cyanoHAB_ts %>% select(date, CD_cellsmL)
+cyanoHAB_ts2<-as.xts(cyanoHAB_ts2)
+
+### interpolate between values ###
+cyanoHAB_ts2$CD_int<- na_seadec(cyanoHAB_ts2$CD_cellsmL, find_frequency=TRUE) #linear interpolation
+cyanoHAB_ts2$CD_ma<- na_seadec(cyanoHAB_ts2$CD_cellsmL, algorithm= "ma", find_frequency=TRUE) #moving average
+cyanoHAB_ts2$CD_kalman<- na_seadec(cyanoHAB_ts2$CD_cellsmL, algorithm="kalman", find_frequency=TRUE) #kalman
+
+### plot out the data ###
+SIfig15<- plot.xts(cyanoHAB_ts2, xlab="Date", ylab="Cyanobacteria density (cells/mL)", legend.loc = "topleft")
+SIfig15
+#ggsave(SIfig15, file="Products/SI_figures/Figure15.png")
+
+### run ANOVA to test difference in distributions ###
+cyanoHAB_ts_df<- data.frame(cyanoHAB_ts2) #convert time series back to data frame
+cyanoHAB_ts_df<- melt(cyanoHAB_ts_df, measure.vars = c("CD_cellsmL", "CD_int", "CD_ma", "CD_kalman"), variable.name="method")
+CD_anova<- aov(data=cyanoHAB_ts_df, formula=value ~ method)
+summary(CD_anova)
+```
+
+d) Regressing Chla against CD...
+
+```{r}
+Chla_CD_reg<- lm(log10(CD_cellsmL)~log10(Chla_ugL), data=subset(Chla_CD, daynum >=195 & daynum <=252))
+summary(Chla_CD_reg)
+plot(log10(Chla_CD$Chla_ugL), log10(Chla_CD$CD_cellsmL))
+```
