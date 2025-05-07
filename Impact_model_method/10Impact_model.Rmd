@@ -36,36 +36,9 @@ weekly<- weekly %>% filter(daynum>=196 & daynum <=252)
 
 Data loaded.
 
-# Step 2. Define predictors (transformations and lags):
+# Step 2. View data:
 
-a) defining predictor lags and transformation...
-
-```{r}
-### checking linear correlation with response, vary lags as needed ###
-SIfig13a<- ggscatter(data=weekly,
-          x="CD_cellsmL_k7",y="CD_cellsmL", 
-          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="CD (cells/mL), lagged 1 week", ylab="CD (cells/mL)")
-
-SIfig13b<-ggscatter(data=weekly,
-          x="Pint_k21",y="CD_cellsmL", 
-          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="Pint, lagged 3 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
-
-SIfig13c<- ggscatter(data=weekly,
-          x="Pext_k28",y="CD_cellsmL", 
-          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
-          xlab="Pext, lagged 4 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
-
-SIfig13<- ggarrange(SIfig13a, SIfig13b, SIfig13c, nrow=3, ncol=1)
-SIfig13
-write.csv(weekly, file="Products/SI_figures/Figure13_data.csv")
-ggsave(SIfig13, file="Products/SI_figures/Figure13.png")
-```
-
-Predictor lags defined.
-
-b) checking for normality...
+a) checking for normality...
 
 ```{r}
 par(mfrow=c(2,4), mar=c(4,4,4,4))
@@ -73,31 +46,90 @@ hist(weekly$Chla_ugL, breaks=18,#histograph of Chl-a
      main="non-transformed", xlab="Chl-a") 
 hist(weekly$CD_cellsmL, breaks=18,#histograph of CD
      main="non-transformed", xlab="CD") 
-hist(weekly$Pext_k28, breaks=18,#histogrpah of P_ext
-     main="non-transformed", xlab="P_ext_k28") 
-hist(weekly$Pint_k21, breaks=18,#histograph of P_int
-     main="non-transformed", xlab="P_int_k21") 
+hist(weekly$Pext, breaks=18,#histogrpah of P_ext
+     main="non-transformed", xlab="P_ext") 
+hist(weekly$Pint, breaks=18,#histograph of P_int
+     main="non-transformed", xlab="P_int") 
 hist(log10(weekly$Chla_ugL), breaks=18,#histograph of log10(Chl-a)
      main="log-transformed", xlab="Chl-a") 
 hist(log10(weekly$CD_cellsmL), breaks=18,#histograph of log10(CD)
      main="log-transformed", xlab="CD") 
-hist(log10(weekly$Pext_k28), breaks=18,#histograph of log10(P_ext)
-     main="log-transformed", xlab="P_ext_k28") 
-hist(log10(weekly$Pint_k21), breaks=18,#histograph of log10(P_int)
-     main="log-transformed", xlab="P_int_k21") 
+hist(log10(weekly$Pext), breaks=18,#histograph of log10(P_ext)
+     main="log-transformed", xlab="P_ext") 
+hist(log10(weekly$Pint), breaks=18,#histograph of log10(P_int)
+     main="log-transformed", xlab="P_int") 
 par(mfrow=c(1,1)) #return to default
-#save manually as SI-fig14
+#save manually as SI-fig17
 ```
 
 Comparison of non-transformed and transformed data graphed.
 
-# Step 3. Run regression:
+c) summarizing data...
+
+```{r}
+summary(weekly$CD_cellsmL)
+sd(weekly$CD_cellsmL)/sqrt(length(weekly$CD_cellsmL))
+```
+
+Data summarized.
+
+# Step 3. Define predictors lags:
+
+```{r}
+### find the best predictor lag by varying lag in model below ###
+regChla<- lm(formula=Chla_ugL~Chla_ugL_k28, data=weekly)
+summary(regChla)
+
+regCD<- lm(formula=CD_cellsmL~CD_cellsmL_k28, data=weekly)
+summary(regCD)
+
+regCD<- lm(formula=CD_cellsmL~log10(Pint_k28), data=weekly[-c(38),] )
+summary(regCD)
+par(mfrow=c(2,2))
+plot(regCD)
+
+regCD<- lm(formula=CD_cellsmL~log10(Pext_k28), data=weekly)
+summary(regCD)
+plot(regCD)
+
+regCD<- lm(formula=CD_cellsmL~Pratio_k28, data=weekly)
+summary(regCD)
+plot(regCD)
+
+par(mfrow=c(1,1))
+
+### checking linear correlation with response ###
+SIfig16a<- ggscatter(data=weekly,
+          x="CD_cellsmL_k7",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="CD (cells/mL), lagged 1 week", ylab="CD (cells/mL)")
+
+SIfig16b<-ggscatter(data=weekly[-c(38),] ,
+          x="Pint_k21",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="Pint, lagged 3 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
+
+SIfig16c<- ggscatter(data=weekly,
+          x="Pext_k28",y="CD_cellsmL", 
+          add="reg.line", conf.int=TRUE, cor.coef=TRUE, cor.method="pearson",
+          xlab="Pext, lagged 4 weeks", ylab="CD (cells/mL)")+ xscale("log10", .format=TRUE)
+
+SIfig16<- ggarrange(SIfig16a, SIfig16b, SIfig16c, nrow=3, ncol=1)
+SIfig16
+write.csv(weekly, file="Products/SI_figures/Figure16_data.csv")
+ggsave(SIfig16, file="Products/SI_figures/Figure16.png")
+```
+
+Predictor lags defined.
+
+# Step 4. Run regression:
 
 a) running model: CD_t ~ log10(P_int, t-k) + log10(P_ext,t-k) + error
 
 ```{r}
-### define the model ###
-regka_CD<- glm(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), data=weekly)
+### run the regression model ###
+regka_CD<- glm(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), 
+               data=weekly)
 
 ### print model AIC ###
 summary(regka_CD)
@@ -122,16 +154,30 @@ abline(a=0,b=1) #add 1:1 line to plot
 # save as SIfig15
 par(mfrow=c(1,1)) #return par to default
 
-### remove outliers if necessary ###
-weekly<- weekly[-c(38, 22),] #outlier identified in diagnostics
-
 ### print model VIFs ###
 vif(regka_CD) #prints the VIFs 
 ```
 
 Model diagnostics complete.
 
-# Step 4. Calculate the partial sum squares for each year:
+c) adjusting model as needed...
+
+```{r}
+### run the regression model without outliers###
+weekly<- weekly[-c(38,22),]
+regka_CD<- glm(formula=CD_cellsmL~CD_cellsmL_k7+log10(Pint_k21)+log10(Pext_k28), 
+               data=weekly)
+
+### print model AIC ###
+summary(regka_CD)
+
+### print model R^2 ###
+summary(lm(regka_CD))
+```
+
+Model adjusted.
+
+# Step 5. Calculate the partial sum squares for each year:
 
 a) calculating partial squares for each year...
 
@@ -181,7 +227,7 @@ impact2018<- data.frame(SS_2018[[1]])[,2,drop=FALSE] #pulls out the SS as table
 
 Partial Sum Squares calculated for each year.
 
-c) combining the SSR into one data file...
+b) combining the SSR into one data file...
 
 ```{r}
 ### merging the Sum Squares tables ###
@@ -199,7 +245,7 @@ CD_table<- melt(Model_output_CD, id.vars="Sum_Sq_part", variable.name = "Year", 
 
 SS combined.
 
-d) plotting the SS...
+c) plotting the SS...
 
 ```{r}
 ### plot the output ###
@@ -215,7 +261,7 @@ fig5a
 
 Yearly source-attributed impact outputted.
 
-# Step 5. Predict the change in cyanoHAB severity:
+# Step 6. Predict the change in cyanoHAB severity:
 
 a) creating new data based on counterfactuals and model predicted responses...
 
@@ -266,23 +312,11 @@ New data merged.
 c) plotting results...
 
 ```{r}
-### plot time series ###
-#ggplot(data=Severity_long, aes(x=daynum, y=CD_cellsmL/10000, group=Scenario)) +
-#  facet_wrap(~Yr)+
-#  geom_point(aes(shape=Scenario, color=Scenario))+
-#  geom_line(aes(linetype=Scenario, color=Scenario))+
-#  scale_linetype_manual(values=c("solid","dashed","twodash","dotted"))+
-#  scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
-#  labs(x="Day", y=NULL, title="b) CyanoHAB severity (10^4 cells/mL)") +
-#  theme_classic() +
-#  theme(legend.position="bottom")
-
-### alternatively a boxplot series ###
 comparisons<- list(c("Baseline", "CF1"), c("Baseline", "CF2"), c("Baseline", "CF3"))
-fig5b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/10000, group=Scenario)) +
+fig5b<- ggplot(data=Severity_long, aes(x=Scenario, y=CD_cellsmL/100000, group=Scenario)) +
   geom_violin(aes(col=Scenario), trim=FALSE)+
   scale_color_manual(values=c("black","darkorange","darkred", "darkgreen"))+
-  labs(y="x10^4 cells/mL", title="b) Cyanobacteria Cell Density") +
+  labs(y="CD x10^5 cells/mL", title="b) Cyanobacteria Cell Density") +
   theme_classic() +
   theme(legend.position="bottom") +
   stat_compare_means(comparisons=comparisons, method="t.test", label="p.signif")
@@ -295,7 +329,7 @@ d) combining figures...
 ```{r}
 fig5<- ggarrange(fig5a, fig5b, nrow=1, ncol=2)
 fig5
-ggsave(fig3, file="Products/Figure5_color.png")
+ggsave(fig5, file="Products/Figure5_color.png")
 ```
 
 Figures combined
